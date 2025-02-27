@@ -7,6 +7,8 @@ from tempfile import gettempdir
 from PIL import Image
 from io import BytesIO
 import os
+from openai.types.beta.assistant_stream_event import ThreadMessageDelta
+from openai.types.beta.threads.text_delta_block import TextDeltaBlock
 # Initialize the OpenAI client
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -113,7 +115,7 @@ file_ids = ["file-EYg1ZpzZZvyYXs6dX7adYP",
             "file-9f6PGtnnuU8DY5JKFqbGKn",
             "file-Edv5kNxWWU3jLZ3XrsVmhx",
             "file-JZhgddcDk1RsGHn2enNxSg",
-           # "file-BSHtSKigyhUJWXswtN9z7o",
+            "file-BSHtSKigyhUJWXswtN9z7o",
            # "file-5v8aJnkvypyxXb5EBQ81xk",
            # "file-6TiB1V1E2mBaYrFXp1toNm",
            # "file-Ngre85rrQfkfvTdTRxjEkX",
@@ -149,52 +151,64 @@ for message in st.session_state.messages:
                 st.markdown(message["content"])
 
 if prompt := st.chat_input("How can I help you?"):
-
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar='🧑‍💻'):
         st.markdown(prompt)
 
-    with st.spinner('🤖 Analyzing, please wait...'):  
+    with st.chat_message("assistant", avatar='https://components.keboola.com/images/default-app-icon.png'):
+        # Create a placeholder for the assistant's response
+        message_placeholder = st.empty()
+        assistant_reply = ""
+
+        # Create the message in the thread
         thread_message = client.beta.threads.messages.create(
             st.session_state.thread_id,
             role="user",
             content=prompt,
         )
-        run = client.beta.threads.runs.create_and_poll(
+
+        # Create a streaming run
+        stream = client.beta.threads.runs.create(
             thread_id=st.session_state.thread_id,
             assistant_id=assistant_id,
+            stream=True
         )
 
-    if run.status == 'completed':
+        # Process the streaming response
+        for event in stream:
+            if isinstance(event, ThreadMessageDelta):
+                if isinstance(event.data.delta.content[0], TextDeltaBlock):
+                    # Clear the placeholder
+                    message_placeholder.empty()
+                    
+                    # Add the new text
+                    assistant_reply += event.data.delta.content[0].text.value
+                    
+                    # Display the updated text
+                    message_placeholder.markdown(assistant_reply)
+
+        # After streaming is complete, process any images
         messages = client.beta.threads.messages.list(
             thread_id=st.session_state.thread_id
         )
         newest_message = messages.data[0]
-        complete_message_content = ""
-        with st.chat_message("assistant", avatar='🤖'):
-            for message_content in newest_message.content:
-                if hasattr(message_content, "image_file"):
-                    file_id = message_content.image_file.file_id
+        complete_message_content = assistant_reply
 
-                    resp = client.files.with_raw_response.retrieve_content(file_id)
-
-                    if resp.status_code == 200:
-                        image_data = BytesIO(resp.content)
-                        img = Image.open(image_data)
-                        
-                        temp_dir = gettempdir()
-                        image_path = os.path.join(temp_dir, f"{file_id}.png")
-                        img.save(image_path)
+        for message_content in newest_message.content:
+            if hasattr(message_content, "image_file"):
+                file_id = message_content.image_file.file_id
+                resp = client.files.with_raw_response.retrieve_content(file_id)
                 
-                        st.image(img)
-                        complete_message_content += f"[Image: {image_path}]\n"
+                if resp.status_code == 200:
+                    image_data = BytesIO(resp.content)
+                    img = Image.open(image_data)
+                    
+                    temp_dir = gettempdir()
+                    image_path = os.path.join(temp_dir, f"{file_id}.png")
+                    img.save(image_path)
+                    
+                    st.image(img)
+                    complete_message_content += f"[Image: {image_path}]\n"
 
-                elif hasattr(message_content, "text"):
-                    text = message_content.text.value
-                    st.markdown(text)
-                    complete_message_content += text + "\n"
-
+        # Store the complete message in session state
         st.session_state.messages.append({"role": "assistant", "content": complete_message_content})
-
-    else:
-        st.write(f"Run status: {run.status}")
