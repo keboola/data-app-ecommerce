@@ -1,3 +1,6 @@
 streamlit
 plotly
 keboola-streamlit
+openai
+pandas
+numpy
