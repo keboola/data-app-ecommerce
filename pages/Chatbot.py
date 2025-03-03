@@ -10,8 +10,11 @@ import os
 from openai.types.beta.assistant_stream_event import ThreadMessageDelta
 from openai.types.beta.threads.text_delta_block import TextDeltaBlock
 import pandas as pd
+from keboola_streamlit import KeboolaStreamlit
 
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+keboola = KeboolaStreamlit(st.secrets["kbc_url"], st.secrets["kbc_token"])
 
 session_defaults = {
     "messages": [],
@@ -22,7 +25,8 @@ for key, value in session_defaults.items():
 
 def get_file_ids_from_csv(file_path: str) -> List[str]:
     """Read file IDs from a CSV file."""
-    df = pd.read_csv(file_path)
+    with st.spinner("Loading data..."):
+        df = keboola.read_table(st.secrets["file_upload_data_app"])
     return df['file_id'].tolist()
 
 st.markdown(
