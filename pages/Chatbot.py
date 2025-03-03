@@ -105,8 +105,8 @@ def create_thread(file_ids: List[str]) -> str:
             messages=[
                 {
                     "role": "user",
-                    "content": ("""
-                        Files attached contain data about the orders, customers and products. Please use this data to answer the questions.
+                    "content": (f"""
+                       {st.secrets["initial_message"]}
                         """             
                     ),
                     "attachments": attachments
