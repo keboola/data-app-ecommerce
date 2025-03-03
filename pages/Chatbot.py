@@ -9,7 +9,8 @@ from io import BytesIO
 import os
 from openai.types.beta.assistant_stream_event import ThreadMessageDelta
 from openai.types.beta.threads.text_delta_block import TextDeltaBlock
-# Initialize the OpenAI client
+import pandas as pd
+
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 session_defaults = {
@@ -19,7 +20,11 @@ for key, value in session_defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-# Custom styling
+def get_file_ids_from_csv(file_path: str) -> List[str]:
+    """Read file IDs from a CSV file."""
+    df = pd.read_csv(file_path)
+    return df['file_id'].tolist()
+
 st.markdown(
     """
     <div style="display: flex; align-items: center;">
@@ -31,7 +36,7 @@ st.markdown(
 )
 st.markdown("""---""")
 col1, col2, col3, col4, col5,col6 = st.columns(6)
-# Add a clear chat button
+
 if st.sidebar.button("Clear Chat", type="tertiary"):
     st.session_state.messages = []
     if "thread_id" in st.session_state:
@@ -103,33 +108,8 @@ def create_thread(file_ids: List[str]) -> str:
         )
         st.session_state.thread_id = thread.id
     return st.session_state.thread_id
-
-# Initialize the assistant and thread
 assistant_id = initialize_assistant()
-file_ids = ["file-EYg1ZpzZZvyYXs6dX7adYP", 
-            "file-R9YjDKAD55HiaFyHD6sFCM", 
-            "file-36UWTpzuCNaRT7HJrE3rLD",
-            "file-M37FK1HCDppQH1pjMiE1XS",
-            "file-B7cV47tcEC8zwMKESSgXdt",
-            "file-6erWmfWa1ccRvqmSBKLAkU",
-            "file-9f6PGtnnuU8DY5JKFqbGKn",
-            "file-Edv5kNxWWU3jLZ3XrsVmhx",
-            "file-JZhgddcDk1RsGHn2enNxSg",
-            "file-BSHtSKigyhUJWXswtN9z7o",
-           # "file-5v8aJnkvypyxXb5EBQ81xk",
-           # "file-6TiB1V1E2mBaYrFXp1toNm",
-           # "file-Ngre85rrQfkfvTdTRxjEkX",
-           # "file-B7CphxcmSqohmtvzvqhxry",
-           # "file-4ufkyD1E8tQrTJ28bk7hTn",
-           # "file-NAbxmN279paKeecAQNBDdR",
-           # "file-SW4zyVrngnf8EEdznAUHbR",
-           # "file-M2GPPDpTxWnTfpfoNLXqzQ",
-           # "file-2UoffjUnDL48jJXG3K1rw6",
-           # "file-5cW7o4HRU9BSfbNURfRXzP",
-          #  "file-CJdDErXGWruvQLdQCvhWTo",
-          #  "file-XRD7nm7vC8hhxirx7nXYcB",
-          #  "file-XP5cMEeKbBbf4Xopediwda"
-            ]  # Replace with your actual file IDs
+file_ids = get_file_ids_from_csv('data/in/tables/file_upload_data_app.csv')
 thread_id = create_thread(file_ids)
 
 for message in st.session_state.messages:
