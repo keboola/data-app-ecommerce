@@ -18,16 +18,13 @@ keboola = KeboolaStreamlit(st.secrets["kbc_url"], st.secrets["kbc_token"])
 
 session_defaults = {
     "messages": [],
+    "file_ids": [],
+    "file_ids_df": None
 }
 for key, value in session_defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-def get_file_ids_from_csv(file_path: str) -> List[str]:
-    """Read file IDs from a CSV file."""
-    with st.spinner("Loading data..."):
-        df = keboola.read_table(st.secrets["file_upload_data_app"])
-    return df['file_id'].tolist()
 
 st.markdown(
     """
@@ -87,6 +84,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def get_file_ids_from_csv() -> List[str]:
+    """Read file IDs from a CSV file."""
+    if st.session_state.file_ids_df is None:
+        with st.spinner("Loading data..."):
+            st.session_state.file_ids_df = keboola.read_table(st.secrets["file_upload_data_app"])
+    return st.session_state.file_ids_df['file_id'].tolist()
+
 def initialize_assistant() -> str:
     """Initialize or retrieve the assistant ID."""
     if "assistant_id" not in st.session_state:
@@ -97,13 +101,12 @@ def create_thread(file_ids: List[str]) -> str:
     """Create a new thread or retrieve existing thread ID."""
     if "thread_id" not in st.session_state:
         attachments = [{"file_id": file_id, "tools": [{"type": "code_interpreter"}]} for file_id in file_ids]
-        
         thread = client.beta.threads.create(
             messages=[
                 {
                     "role": "user",
                     "content": ("""
-                        To help you navigate the CSV files you're working with, find the description of tables and columns in the DatabaseSchema.txt file.
+                        Files attached contain data about the orders, customers and products. Please use this data to answer the questions.
                         """             
                     ),
                     "attachments": attachments
@@ -113,8 +116,8 @@ def create_thread(file_ids: List[str]) -> str:
         st.session_state.thread_id = thread.id
     return st.session_state.thread_id
 assistant_id = initialize_assistant()
-file_ids = get_file_ids_from_csv('/data/in/tables/file_upload_data_app.csv')
-thread_id = create_thread(file_ids)
+st.session_state.file_ids = get_file_ids_from_csv()
+thread_id = create_thread(st.session_state.file_ids)
 
 for message in st.session_state.messages:
         if message["role"] == "user":
