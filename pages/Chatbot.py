@@ -109,7 +109,7 @@ def create_thread(file_ids: List[str]) -> str:
         st.session_state.thread_id = thread.id
     return st.session_state.thread_id
 assistant_id = initialize_assistant()
-file_ids = get_file_ids_from_csv('data/in/tables/file_upload_data_app.csv')
+file_ids = get_file_ids_from_csv('/data/in/tables/file_upload_data_app.csv')
 thread_id = create_thread(file_ids)
 
 for message in st.session_state.messages:
