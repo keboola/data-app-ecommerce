@@ -1,15 +1,13 @@
 import streamlit as st
 import openai
-import json
-import time
+import os
+
 from typing import List
 from tempfile import gettempdir
 from PIL import Image
 from io import BytesIO
-import os
 from openai.types.beta.assistant_stream_event import ThreadMessageDelta
 from openai.types.beta.threads.text_delta_block import TextDeltaBlock
-import pandas as pd
 from keboola_streamlit import KeboolaStreamlit
 
 client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -86,11 +84,11 @@ st.markdown("""
 
 def get_file_ids_from_csv() -> List[str]:
     """Read file IDs from a CSV file."""
-    return st.secrets["file_ids"]
-    #if st.session_state.file_ids_df is None:
-        # with st.spinner("Loading data..."):
-            #   st.session_state.file_ids_df = keboola.read_table(st.secrets["file_upload_data_app"])
-    #return st.session_state.file_ids_df['file_id'].tolist()
+    #return st.secrets["file_ids"]
+    if st.session_state.file_ids_df is None:
+        with st.spinner("Loading data..."):
+            st.session_state.file_ids_df = keboola.read_table(st.secrets["file_upload_data_app"])
+    return st.session_state.file_ids_df['file_id'].tolist()
 
 def initialize_assistant() -> str:
     """Initialize or retrieve the assistant ID."""
