@@ -88,6 +88,14 @@ def get_file_ids_from_csv() -> List[str]:
     if st.session_state.file_ids_df is None:
         with st.spinner("Loading data..."):
             st.session_state.file_ids_df = keboola.read_table(st.secrets["file_upload_data_app"])
+    
+    # Create a mapping of file_id to file_name for easier reference
+    if "file_mapping" not in st.session_state:
+        st.session_state.file_mapping = {
+            row['file_id']: row['file_name'] 
+            for _, row in st.session_state.file_ids_df.iterrows()
+        }
+        
     return st.session_state.file_ids_df['file_id'].tolist()
 
 def initialize_assistant() -> str:
@@ -100,14 +108,25 @@ def create_thread(file_ids: List[str]) -> str:
     """Create a new thread or retrieve existing thread ID."""
     if "thread_id" not in st.session_state:
         attachments = [{"file_id": file_id, "tools": [{"type": "code_interpreter"}]} for file_id in file_ids]
+        
+        # Include file mapping information in the initial message
+        file_info = "\n".join([
+            f"- {st.session_state.file_mapping[file_id]}: {file_id}" 
+            for file_id in file_ids if file_id in st.session_state.file_mapping
+        ])
+        
+        initial_content = f"""
+        {st.secrets["initial_message"]}
+        
+        Available files:
+        {file_info}
+        """
+        
         thread = client.beta.threads.create(
             messages=[
                 {
                     "role": "user",
-                    "content": (f"""
-                    {st.secrets["initial_message"]}
-                        """             
-                    ),
+                    "content": initial_content,
                     "attachments": attachments
                 }
             ]
