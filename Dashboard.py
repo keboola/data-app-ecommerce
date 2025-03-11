@@ -1663,12 +1663,18 @@ with tabs[6]:
     
     with col1:
         # Budget by Campaign Type
+        # Create a color map to ensure consistent colors across both charts
+        campaign_types = type_performance['CAMPAIGN_TYPE'].unique()
+        color_map = dict(zip(campaign_types, BASE_PALETTE[:len(campaign_types)]))
+
+        # Budget by Campaign Type
         fig_budget = px.pie(
             type_performance,
-            values='BUDGET',
+            values='BUDGET', 
             names='CAMPAIGN_TYPE',
             title='Budget Distribution by Campaign Type',
-            color_discrete_sequence=BASE_PALETTE
+            color='CAMPAIGN_TYPE',
+            color_discrete_map=color_map
         )
         
         fig_budget.update_traces(
@@ -1687,7 +1693,7 @@ with tabs[6]:
             title='Number of Campaigns by Type',
             color='CAMPAIGN_TYPE',
             labels={'CAMPAIGN_ID': 'Number of Campaigns'},
-            color_discrete_sequence=BASE_PALETTE
+            color_discrete_map=color_map
         )
         
         fig_count.update_layout(
