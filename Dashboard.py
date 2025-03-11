@@ -1771,6 +1771,11 @@ with tabs[6]:
     col1, col2 = st.columns(2)
     
     with col1:
+        # Create a color map to ensure consistent colors across both charts
+        segments = segment_analysis['TARGET_SEGMENT'].unique()
+        custom_colors = px.colors.qualitative.Dark2[:len(segments)]
+        color_map = dict(zip(segments, custom_colors))
+
         # Campaigns by Target Segment
         fig_segments = px.bar(
             segment_analysis,
@@ -1779,7 +1784,7 @@ with tabs[6]:
             title='Number of Campaigns by Target Segment',
             color='TARGET_SEGMENT',
             labels={'CAMPAIGN_ID': 'Number of Campaigns'},
-            color_discrete_sequence=BASE_PALETTE
+            color_discrete_map=color_map
         )
         
         fig_segments.update_layout(
@@ -1798,7 +1803,8 @@ with tabs[6]:
             values='BUDGET',
             names='TARGET_SEGMENT',
             title='Budget Allocation by Target Segment',
-            color_discrete_sequence=BASE_PALETTE
+            color='TARGET_SEGMENT',
+            color_discrete_map=color_map
         )
         
         fig_segment_budget.update_traces(
@@ -1830,7 +1836,7 @@ with tabs[6]:
             color='CAMPAIGN_TYPE',
             title='Top 10 Campaigns by Attributed Revenue',
             text=top_attribution['ATTRIBUTED_REVENUE'].apply(lambda x: f'${x:,.2f}'),
-            color_discrete_sequence=ACCENT_PALETTE
+            color_discrete_map=color_map
         )
         
         fig_attribution.update_layout(
