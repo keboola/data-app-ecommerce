@@ -1666,7 +1666,7 @@ with tabs[6]:
         # Create a color map to ensure consistent colors across both charts
         campaign_types = type_performance['CAMPAIGN_TYPE'].unique()
         # Use a different color palette from plotly express
-        custom_colors = px.colors.qualitative.Set3[:len(campaign_types)]
+        custom_colors = px.colors.qualitative.Dark2[:len(campaign_types)]
         color_map = dict(zip(campaign_types, custom_colors))
 
         # Budget by Campaign Type
@@ -1719,7 +1719,7 @@ with tabs[6]:
     with col1:
         # Create a color map to ensure consistent colors across both charts
         objectives = objective_counts['OBJECTIVE'].unique()
-        custom_colors = px.colors.qualitative.Accent[:len(objectives)]
+        custom_colors = px.colors.qualitative.Dark2[:len(objectives)]
         color_map = dict(zip(objectives, custom_colors))
 
         # Number of Campaigns by Objective
