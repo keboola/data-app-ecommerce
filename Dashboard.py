@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
+import time
+from datetime import datetime
 
 from keboola_streamlit import KeboolaStreamlit
 
@@ -161,31 +163,53 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Load data
-campaign = pd.read_csv("/data/in/tables/CAMPAIGN.csv")
-campaign_event = pd.read_csv("/data/in/tables/CAMPAIGN_EVENT.csv") #
-channel = pd.read_csv("/data/in/tables/CHANNEL.csv")
-company = pd.read_csv("/data/in/tables/COMPANY.csv")
-content_page = pd.read_csv("/data/in/tables/CONTENT_PAGE.csv") #
-custom_attribute = pd.read_csv("/data/in/tables/CUSTOM_ATTRIBUTE.csv") #
-customer = pd.read_csv("/data/in/tables/CUSTOMER.csv")
-digital_event = pd.read_csv("/data/in/tables/DIGITAL_EVENT.csv")
-digital_site = pd.read_csv("/data/in/tables/DIGITAL_SITE.csv") #
-facility = pd.read_csv("/data/in/tables/FACILITY.csv")
-inventory = pd.read_csv("/data/in/tables/INVENTORY.csv")
-order_campaign_attribution = pd.read_csv("/data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
-order_event = pd.read_csv("/data/in/tables/ORDER_EVENT.csv") #
-order_fact = pd.read_csv("/data/in/tables/ORDER_FACT.csv")
-order_fulfillment = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT.csv") #
-order_fulfillment_line = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT_LINE.csv") #
-order_line = pd.read_csv("/data/in/tables/ORDER_LINE.csv")
-order_status_history = pd.read_csv("/data/in/tables/ORDER_STATUS_HISTORY.csv") #
-page_performance = pd.read_csv("/data/in/tables/PAGE_PERFORMANCE.csv")
-person = pd.read_csv("/data/in/tables/PERSON.csv")
-product = pd.read_csv("/data/in/tables/PRODUCT.csv")
-product_variant = pd.read_csv("/data/in/tables/PRODUCT_VARIANT.csv") #
-sales_plan = pd.read_csv("/data/in/tables/SALES_PLAN.csv")
+# Cache data loading to improve performance
+@st.cache_data(ttl=3600)
+def load_data():
+    """Load and preprocess all data files"""
+    data = {}
+    
+    # Load all data files
+    data['campaign'] = pd.read_csv("/data/in/tables/CAMPAIGN.csv")
+    data['campaign_event'] = pd.read_csv("/data/in/tables/CAMPAIGN_EVENT.csv")
+    data['channel'] = pd.read_csv("/data/in/tables/CHANNEL.csv")
+    data['company'] = pd.read_csv("/data/in/tables/COMPANY.csv")
+    data['content_page'] = pd.read_csv("/data/in/tables/CONTENT_PAGE.csv")
+    data['custom_attribute'] = pd.read_csv("/data/in/tables/CUSTOM_ATTRIBUTE.csv")
+    data['customer'] = pd.read_csv("/data/in/tables/CUSTOMER.csv")
+    data['digital_event'] = pd.read_csv("/data/in/tables/DIGITAL_EVENT.csv")
+    data['digital_site'] = pd.read_csv("/data/in/tables/DIGITAL_SITE.csv")
+    data['facility'] = pd.read_csv("/data/in/tables/FACILITY.csv")
+    data['inventory'] = pd.read_csv("/data/in/tables/INVENTORY.csv")
+    data['order_campaign_attribution'] = pd.read_csv("/data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
+    data['order_event'] = pd.read_csv("/data/in/tables/ORDER_EVENT.csv")
+    data['order_fact'] = pd.read_csv("/data/in/tables/ORDER_FACT.csv")
+    data['order_fulfillment'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT.csv")
+    data['order_fulfillment_line'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT_LINE.csv")
+    data['order_line'] = pd.read_csv("/data/in/tables/ORDER_LINE.csv")
+    data['order_status_history'] = pd.read_csv("/data/in/tables/ORDER_STATUS_HISTORY.csv")
+    data['page_performance'] = pd.read_csv("/data/in/tables/PAGE_PERFORMANCE.csv")
+    data['person'] = pd.read_csv("/data/in/tables/PERSON.csv")
+    data['product'] = pd.read_csv("/data/in/tables/PRODUCT.csv")
+    data['product_variant'] = pd.read_csv("/data/in/tables/PRODUCT_VARIANT.csv")
+    data['sales_plan'] = pd.read_csv("/data/in/tables/SALES_PLAN.csv")
+    
+    # Preprocess date columns to improve filtering performance
+    data['order_fact']['ORDER_DATE'] = pd.to_datetime(data['order_fact']['ORDER_DATE'])
+    data['digital_event']['EVENT_DATE'] = pd.to_datetime(data['digital_event']['EVENT_DATE'])
+    data['page_performance']['DATE'] = pd.to_datetime(data['page_performance']['DATE'])
+    data['campaign']['START_DATE'] = pd.to_datetime(data['campaign']['START_DATE'])
+    data['campaign']['END_DATE'] = pd.to_datetime(data['campaign']['END_DATE'])
+    data['sales_plan']['PLAN_START_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_START_DATE'])
+    data['sales_plan']['PLAN_END_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_END_DATE'])
+    
+    # Clean budget data
+    data['campaign']['BUDGET'] = data['campaign']['BUDGET'].str.replace('$', '').str.replace(',', '').astype(float)
+    
+    return data
 
+# Load all data
+data = load_data()
 
 # Display Keboola logo and title
 st.markdown(
@@ -205,112 +229,126 @@ with st.sidebar:
     st.subheader("Filters")
     
     # Date range filter
-    min_date = pd.to_datetime(order_fact['ORDER_DATE']).min()
-    max_date = pd.to_datetime(order_fact['ORDER_DATE']).max()
-    date_range = st.date_input(
-        "Date Range",
-        value=(min_date, max_date),
-        min_value=min_date,
-        max_value=max_date
+    min_date = data['order_fact']['ORDER_DATE'].min()
+    max_date = pd.Timestamp.today()
+    
+    # Add date filter options
+    date_filter_option = st.selectbox(
+        "Date Filter Type",
+        options=["Current Year", "Year to Date", "Custom"],
+        index=0
     )
     
+    # Calculate date ranges based on selection
+    today = pd.Timestamp.today()
+    current_year_start = pd.Timestamp(today.year, 1, 1)
+    year_ago = today - pd.DateOffset(years=1)
+    
+    if date_filter_option == "Current Year":
+        # Current year from Jan 1st to today
+        date_range = (current_year_start.date(), today.date())
+    elif date_filter_option == "Year to Date":
+        # Last 365 days
+        date_range = (year_ago.date(), today.date())
+    else:  # Custom Range
+        date_range = st.date_input(
+            "Custom",
+            value=(min_date, today.date()),
+            min_value=min_date,
+            max_value=today.date()
+        )
+    
     # Other filters
-    channels = ['All'] + list(channel['CHANNEL_NAME'].unique())
+    channels = ['All'] + sorted(data['channel']['CHANNEL_NAME'].unique().tolist())
     selected_channel = st.selectbox('Sales Channel', channels)
     
-    categories = ['All'] + list(product['CATEGORY'].unique())
+    categories = ['All'] + sorted(data['product']['CATEGORY'].unique().tolist())
     selected_category = st.selectbox('Product Category', categories)
     
-    payment_methods = ['All'] + list(order_fact['PAYMENT_METHOD'].unique())
+    payment_methods = ['All'] + sorted(data['order_fact']['PAYMENT_METHOD'].unique().tolist())
     selected_payment_method = st.selectbox('Payment Method', payment_methods)
     
-    order_statuses = ['All'] + list(order_fact['ORDER_STATUS'].unique())
+    order_statuses = ['All'] + sorted(data['order_fact']['ORDER_STATUS'].unique().tolist())
     selected_order_status = st.selectbox('Order Status', order_statuses)
     
-    # Show active filters
-    active_filters = []
-    if len(date_range) == 2:
-        active_filters.append(f"Date: {date_range[0].strftime('%Y-%m-%d')} to {date_range[1].strftime('%Y-%m-%d')}")
-    if selected_channel != 'All':
-        active_filters.append(f"Channel: {selected_channel}")
-    if selected_category != 'All':
-        active_filters.append(f"Category: {selected_category}")
-    if selected_payment_method != 'All':
-        active_filters.append(f"Payment Method: {selected_payment_method}")
-    if selected_order_status != 'All':
-        active_filters.append(f"Order Status: {selected_order_status}")
+
+filtered_data = {
+        'order_fact': data['order_fact'].copy(),
+        'order_line': data['order_line'].copy(),
+        'customer': data['customer'].copy(),
+        'product': data['product'].copy(),
+        'digital_event': data['digital_event'].copy(),
+        'page_performance': data['page_performance'].copy(),
+        'campaign': data['campaign'].copy(),
+        'inventory': data['inventory'].copy(),
+        'facility': data['facility'].copy(),
+        'person': data['person'].copy(),
+        'company': data['company'].copy(),
+        'order_campaign_attribution': data['order_campaign_attribution'].copy()
+    }
     
-    if active_filters:
-        st.markdown("#### Active Filters")
-        for filter_text in active_filters:
-            st.markdown(f"- {filter_text}")
+# Sort dates to ensure start_date is before end_date
+sorted_dates = sorted(date_range)
+start_date = pd.Timestamp(sorted_dates[0])
+end_date = pd.Timestamp(sorted_dates[1])
 
-# Apply filters to data
-#iltered_data = data.copy()
-
-# Filter orders by date range
-if date_range:  # Check if date_range exists
-    try:
-        # Sort dates to ensure start_date is before end_date
-        sorted_dates = sorted(date_range)
-        start_date = sorted_dates[0]
-        end_date = sorted_dates[1]
-        
-        order_fact = order_fact[
-            (pd.to_datetime(order_fact['ORDER_DATE']) >= pd.Timestamp(start_date)) &
-            (pd.to_datetime(order_fact['ORDER_DATE']) <= pd.Timestamp(end_date))
-        ]
-    except (IndexError, TypeError):
-        st.info("Please select both start and end dates")
-        st.stop()  # Stop execution if dates are invalid
+# Filter orders by date range (using vectorized operations)
+date_mask = (filtered_data['order_fact']['ORDER_DATE'] >= start_date) & (filtered_data['order_fact']['ORDER_DATE'] <= end_date)
+filtered_data['order_fact'] = filtered_data['order_fact'][date_mask]
 
 # Filter by channel
 if selected_channel != 'All':
-    channel_ids = channel[channel['CHANNEL_NAME'] == selected_channel]['CHANNEL_ID']
-    order_fact = order_fact[order_fact['CHANNEL_ID'].isin(channel_ids)]
+    channel_ids = data['channel'][data['channel']['CHANNEL_NAME'] == selected_channel]['CHANNEL_ID'].values
+    filtered_data['order_fact'] = filtered_data['order_fact'][filtered_data['order_fact']['CHANNEL_ID'].isin(channel_ids)]
 
 # Filter by payment method
 if selected_payment_method != 'All':
-    order_fact = order_fact[order_fact['PAYMENT_METHOD'] == selected_payment_method]
+    filtered_data['order_fact'] = filtered_data['order_fact'][filtered_data['order_fact']['PAYMENT_METHOD'] == selected_payment_method]
 
 # Filter by order status
 if selected_order_status != 'All':
-    order_fact = order_fact[order_fact['ORDER_STATUS'] == selected_order_status]
+    filtered_data['order_fact'] = filtered_data['order_fact'][filtered_data['order_fact']['ORDER_STATUS'] == selected_order_status]
 
-# Filter order lines and get relevant product IDs
-order_line = order_line[
-    order_line['ORDER_ID'].isin(order_fact['ORDER_ID'])
-]
+# Get relevant order IDs (once)
+order_ids = filtered_data['order_fact']['ORDER_ID'].values
+
+# Filter order lines using the order IDs
+filtered_data['order_line'] = filtered_data['order_line'][filtered_data['order_line']['ORDER_ID'].isin(order_ids)]
 
 # Filter by product category
 if selected_category != 'All':
-    category_product_ids = product[product['CATEGORY'] == selected_category]['PRODUCT_ID']
-    order_line = order_line[
-        order_line['PRODUCT_ID'].isin(category_product_ids)
-    ]
-    product = product[product['CATEGORY'] == selected_category]
+    # Get product IDs for the selected category
+    category_product_ids = filtered_data['product'][filtered_data['product']['CATEGORY'] == selected_category]['PRODUCT_ID'].values
+    
+    # Filter order lines by these product IDs
+    filtered_data['order_line'] = filtered_data['order_line'][filtered_data['order_line']['PRODUCT_ID'].isin(category_product_ids)]
+    
+    # Filter products
+    filtered_data['product'] = filtered_data['product'][filtered_data['product']['CATEGORY'] == selected_category]
+    
+    # Filter inventory
+    filtered_data['inventory'] = filtered_data['inventory'][filtered_data['inventory']['PRODUCT_ID'].isin(category_product_ids)]
 
-# Get relevant customer IDs from filtered orders
-customer_ids = order_fact['CUSTOMER_ID'].unique()
-customer = customer[customer['CUSTOMER_ID'].isin(customer_ids)]
+# Get relevant customer IDs
+customer_ids = filtered_data['order_fact']['CUSTOMER_ID'].unique()
 
-# Filter related tables
-person = person[person['CUSTOMER_ID'].isin(customer_ids)]
-company = company[company['CUSTOMER_ID'].isin(customer_ids)]
+# Filter customer data
+filtered_data['customer'] = filtered_data['customer'][filtered_data['customer']['CUSTOMER_ID'].isin(customer_ids)]
 
-# Filter digital events
-digital_event = digital_event[
-    (pd.to_datetime(digital_event['EVENT_DATE']) >= pd.Timestamp(date_range[0])) &
-    (pd.to_datetime(digital_event['EVENT_DATE']) <= pd.Timestamp(date_range[1]))
-]
+# Filter digital events by date
+digital_date_mask = (filtered_data['digital_event']['EVENT_DATE'] >= start_date) & (filtered_data['digital_event']['EVENT_DATE'] <= end_date)
+filtered_data['digital_event'] = filtered_data['digital_event'][digital_date_mask]
 
-# Filter page performance
-page_performance = page_performance[
-    (pd.to_datetime(page_performance['DATE']) >= pd.Timestamp(date_range[0])) &
-    (pd.to_datetime(page_performance['DATE']) <= pd.Timestamp(date_range[1]))
-]
+# Filter page performance by date
+page_date_mask = (filtered_data['page_performance']['DATE'] >= start_date) & (filtered_data['page_performance']['DATE'] <= end_date)
+filtered_data['page_performance'] = filtered_data['page_performance'][page_date_mask]
+
+# Filter campaigns that overlap with the selected date range
+campaign_mask = (filtered_data['campaign']['START_DATE'] <= end_date) & (filtered_data['campaign']['END_DATE'] >= start_date)
+filtered_data['campaign'] = filtered_data['campaign'][campaign_mask]
 
 
+# Helper function to create metric containers
 def create_metric_container(title, value, color=PRIMARY_COLOR):
     """Create a styled metric container"""
     return f"""
@@ -319,16 +357,25 @@ def create_metric_container(title, value, color=PRIMARY_COLOR):
         <div class="metric-value" style="color: {color}">{value}</div>
     </div>
     """
+
 # Create tabs
-tabs = st.tabs(["Sales Overview", "Sales v Plan", "Product Analysis", "Customer Analysis", "Digital Analysis", "Inventory Analysis", "Campaign Analysis"])
+tab_names = ["Sales Overview", "Sales vs Plan", "Product Analysis", "Customer Analysis", "Digital Analysis", "Inventory Analysis", "Campaign Analysis"]
+tabs = st.tabs(tab_names)
+
+# Track the active tab in session state
+if 'active_tab' not in st.session_state:
+    st.session_state.active_tab = 0
 
 # Overview tab
 with tabs[0]:
-
     # Calculate key metrics
+    order_fact = filtered_data['order_fact']
+    customer = filtered_data['customer']
+    
     total_revenue = order_fact['TOTAL_AMOUNT'].sum()
     total_orders = len(order_fact)
     avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
+    
     # Create key metrics
     col1, col2, col3, col4 = st.columns(4)
     
@@ -337,23 +384,20 @@ with tabs[0]:
     with col2:
         st.markdown(create_metric_container("Total Orders", f"{len(order_fact):,.0f}"), unsafe_allow_html=True)
     with col3:
-        st.markdown(create_metric_container("Total Revenue", f"${order_fact['TOTAL_AMOUNT'].sum():,.0f}"), unsafe_allow_html=True)
+        st.markdown(create_metric_container("Total Revenue", f"${total_revenue:,.0f}"), unsafe_allow_html=True)
     with col4:
         st.markdown(create_metric_container("Avg Order Value", f"${avg_order_value:,.2f}"), unsafe_allow_html=True)
     
-    # Prepare order data
-    order_fact['ORDER_DATE'] = pd.to_datetime(order_fact['ORDER_DATE'])
+    # Create time series with daily orders (using efficient groupby)
+    daily_orders = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).size().reset_index(name='NEW_ORDERS')
     
-    # Create time series with monthly orders
-    monthly_orders = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='M')).size().reset_index(name='NEW_ORDERS')
-    
-    # Plot monthly orders
+    # Plot daily orders
     fig1 = go.Figure()
     
     fig1.add_trace(go.Scatter(
-        x=monthly_orders['ORDER_DATE'],
-        y=monthly_orders['NEW_ORDERS'],
-        name='Monthly Orders',
+        x=daily_orders['ORDER_DATE'],
+        y=daily_orders['NEW_ORDERS'],
+        name='Daily Orders',
         mode='lines+markers',
         marker=dict(color='#90CAF9', size=8),
         line=dict(color='#90CAF9', width=2),
@@ -361,74 +405,53 @@ with tabs[0]:
     ))
     
     fig1.update_layout(
-        title='Monthly Sales Trend',
-        xaxis_title='Month',
+        title='Daily Order Count',
+        xaxis_title='Date',
         yaxis_title='Number of Orders',
         hovermode='x unified'
     )
     st.plotly_chart(fig1, use_container_width=True)
     
     # Order status distribution
-    col1, col2 = st.columns([3, 2], gap="large")
-    
-    with col1:
-        # Calculate order status counts
-        order_status_counts = order_fact['ORDER_STATUS'].value_counts().reset_index()
-        order_status_counts.columns = ['ORDER_STATUS', 'COUNT']
+    # Calculate order status counts (using value_counts for efficiency)
+    order_status_counts = order_fact['ORDER_STATUS'].value_counts().reset_index()
+    order_status_counts.columns = ['ORDER_STATUS', 'COUNT']
 
-        # Create bar chart
-        fig2 = px.bar(
-            order_status_counts,
-            x='ORDER_STATUS', 
-            y='COUNT',
-            title='Order Status Distribution',
-            color='ORDER_STATUS',
-            color_discrete_map=STATUS_COLORS,
-            labels={
-                'ORDER_STATUS': 'Order Status',
-                'COUNT': 'Number of Orders'
-            }
-        )
+    # Create bar chart
+    fig2 = px.bar(
+        order_status_counts,
+        x='ORDER_STATUS', 
+        y='COUNT',
+        title='Order Status Distribution',
+        color='ORDER_STATUS',
+        color_discrete_map=STATUS_COLORS,
+        labels={
+            'ORDER_STATUS': 'Order Status',
+            'COUNT': 'Number of Orders'
+        }
+    )
 
-        # Customize appearance
-        fig2.update_traces(
-            texttemplate='%{y}',
-            textposition='outside'
-        )
-        
-        fig2.update_layout(
-            xaxis_title='Order Status',
-            yaxis_title='Number of Orders',
-            showlegend=False,
-            margin=dict(t=50)
-        )
+    # Customize appearance
+    fig2.update_traces(
+        texttemplate='%{y}',
+        textposition='outside'
+    )
+    
+    fig2.update_layout(
+        xaxis_title='Order Status',
+        yaxis_title='Number of Orders',
+        showlegend=False,
+        margin=dict(t=50)
+    )
 
-        # Display chart
-        st.plotly_chart(fig2, use_container_width=True)
-    with col2:
-        total_orders = len(order_fact)
-        delivered = len(order_fact[order_fact['ORDER_STATUS'] == 'Delivered'])
-        cancelled = len(order_fact[order_fact['ORDER_STATUS'] == 'Cancelled'])
-        failed = len(order_fact[order_fact['ORDER_STATUS'] == 'Failed'])
-        returned = len(order_fact[order_fact['ORDER_STATUS'] == 'Returned'])
-        refunded = len(order_fact[order_fact['ORDER_STATUS'] == 'Refunded'])
-        completed = len(order_fact[order_fact['ORDER_STATUS'] == 'Completed'])
-        in_progress = total_orders - delivered - cancelled - failed - returned - refunded - completed
-        
-        st.markdown(create_metric_container("Completion Rate", f"{completed/total_orders:.1%}", "#4CAF50"), unsafe_allow_html=True)
-        st.markdown(create_metric_container("Orders In Progress", f"{in_progress:,.0f}"), unsafe_allow_html=True)
-        st.markdown(create_metric_container("Cancellation Rate", f"{cancelled/total_orders:.1%}", "#F44336"), unsafe_allow_html=True)
+    # Display chart
+    st.plotly_chart(fig2, use_container_width=True)
     
-    # Revenue by order type and time trend
-    type_revenue_time = order_fact.groupby(['ORDER_TYPE', pd.Grouper(key='ORDER_DATE', freq='M')])['TOTAL_AMOUNT'].sum().reset_index()
+    # Revenue by order type and time trend (using efficient groupby)
+    type_revenue_time = order_fact.groupby(['ORDER_TYPE', pd.Grouper(key='ORDER_DATE', freq='D')])['TOTAL_AMOUNT'].sum().reset_index()
     
-    # Calculate revenue by order type and status for better visualization
-    type_status_revenue = order_fact.groupby(['ORDER_TYPE', 'ORDER_STATUS'])['TOTAL_AMOUNT'].sum().reset_index()
-    type_status_revenue = type_status_revenue.sort_values('TOTAL_AMOUNT', ascending=False)
-    
-
     # Create an area chart for revenue trends
-    # Calculate cumulative revenue by order type
+    # Calculate revenue by order type
     pivot_revenue = type_revenue_time.pivot_table(
         index='ORDER_DATE', 
         columns='ORDER_TYPE', 
@@ -449,8 +472,8 @@ with tabs[0]:
         x='ORDER_DATE',
         y='TOTAL_AMOUNT',
         color='ORDER_TYPE',
-        title='Revenue Trends by Order Type',
-        color_discrete_sequence=BASE_PALETTE,
+        title='Daily Revenue Trends by Order Type',
+        color_discrete_sequence=ACCENT_PALETTE,
         labels={
             'ORDER_DATE': 'Date',
             'TOTAL_AMOUNT': 'Revenue ($)',
@@ -468,99 +491,135 @@ with tabs[0]:
             y=-0.2,
             xanchor="center",
             x=0.5
+        ),
+        hoverlabel=dict(
+            namelength=-1  # Show full label names
         )
+    )
+    
+    # Customize hover template to show date once at the top
+    fig3b.update_traces(
+        hovertemplate=
+        "%{data.name}: $%{y:,.2f}<extra></extra>"
     )
     
     st.plotly_chart(fig3b, use_container_width=True)
     
+    # Update active tab
+    st.session_state.active_tab = 0
 
 # Sales Analysis tab
 with tabs[1]:
-# Create sales dashboard
+    # Check if this tab is active
+    if st.session_state.active_tab != 1:
+        st.session_state.active_tab = 1
+    
+    # Create sales dashboard
     metrics = st.container()
 
-    # Convert dates to datetime
-    order_fact['ORDER_DATE'] = pd.to_datetime(order_fact['ORDER_DATE'])
-
-    # Calculate monthly actual sales
-    monthly_actual_sales = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='M')).agg({
+    # Get filtered data
+    order_fact = filtered_data['order_fact']
+    sales_plan = data['sales_plan']  # Use original sales plan data
+    
+    # Calculate daily actual sales (using efficient groupby)
+    daily_actual_sales = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).agg({
         'TOTAL_AMOUNT': 'sum'
     }).reset_index()
 
-    # Process sales plan data
-    sales_plan['PLAN_START_DATE'] = pd.to_datetime(sales_plan['PLAN_START_DATE'])
-    sales_plan['PLAN_END_DATE'] = pd.to_datetime(sales_plan['PLAN_END_DATE'])
+    # Get date range for filtering
+    sorted_dates = sorted(date_range)
+    start_date = pd.Timestamp(sorted_dates[0])
+    end_date = pd.Timestamp(sorted_dates[1])
+    
+    # Filter sales plan data by the selected date range
+    filtered_sales_plan = sales_plan[
+        ((sales_plan['PLAN_START_DATE'] <= end_date) & 
+         (sales_plan['PLAN_END_DATE'] >= start_date))
+    ]
 
-    # Calculate monthly planned sales
-    monthly_plan = pd.DataFrame()
-    for _, row in sales_plan.iterrows():
-        # Create date range for each plan
-        date_range = pd.date_range(row['PLAN_START_DATE'], row['PLAN_END_DATE'], freq='M')
-        # Distribute target revenue evenly across months
-        monthly_revenue = row['TARGET_REVENUE'] / len(date_range)
-        temp_df = pd.DataFrame({
-            'ORDER_DATE': date_range,
-            'PLANNED_AMOUNT': monthly_revenue
-        })
-        monthly_plan = pd.concat([monthly_plan, temp_df])
-
-    # Aggregate planned sales by month
-    monthly_plan = monthly_plan.groupby('ORDER_DATE')['PLANNED_AMOUNT'].sum().reset_index()
+    # Calculate daily planned sales more efficiently
+    # Create a date range for the filtered period
+    date_range_days = pd.date_range(start=start_date, end=end_date, freq='D')
+    daily_plan = pd.DataFrame({'ORDER_DATE': date_range_days, 'PLANNED_AMOUNT': 0.0})
+    
+    # For each plan, distribute the target revenue across its days
+    for _, row in filtered_sales_plan.iterrows():
+        plan_start = max(row['PLAN_START_DATE'], start_date)
+        plan_end = min(row['PLAN_END_DATE'], end_date)
+        plan_days = (plan_end - plan_start).days + 1
+        
+        if plan_days > 0:
+            daily_amount = row['TARGET_REVENUE'] / plan_days
+            
+            # Update the daily plan for days in this plan's range
+            mask = (daily_plan['ORDER_DATE'] >= plan_start) & (daily_plan['ORDER_DATE'] <= plan_end)
+            daily_plan.loc[mask, 'PLANNED_AMOUNT'] += daily_amount
 
     # Merge actual and planned sales
-    monthly_sales = pd.merge(
-        monthly_actual_sales,
-        monthly_plan,
+    daily_sales = pd.merge(
+        daily_actual_sales,
+        daily_plan,
         on='ORDER_DATE',
         how='outer'
     ).fillna(0)
 
     # Sort by date
-    monthly_sales = monthly_sales.sort_values('ORDER_DATE')
+    daily_sales = daily_sales.sort_values('ORDER_DATE')
 
     # Calculate achievement rate
-    monthly_sales['ACHIEVEMENT_RATE'] = (monthly_sales['TOTAL_AMOUNT'] / monthly_sales['PLANNED_AMOUNT'] * 100).fillna(0)
+    daily_sales['ACHIEVEMENT_RATE'] = (daily_sales['TOTAL_AMOUNT'] / daily_sales['PLANNED_AMOUNT'] * 100).fillna(0)
+
     # Create sales vs plan visualization
     sales_plan_fig = go.Figure()
+
+    # Add colored background for each day (more efficiently)
+    achievement_colors = np.where(
+        daily_sales['TOTAL_AMOUNT'] >= daily_sales['PLANNED_AMOUNT'],
+        'rgba(0, 255, 0, 0.1)',  # Green for achievement >= 100%
+        'rgba(255, 0, 0, 0.1)'   # Red for achievement < 100%
+    )
     
+    for i in range(len(daily_sales)-1):
+        sales_plan_fig.add_vrect(
+            x0=daily_sales['ORDER_DATE'].iloc[i],
+            x1=daily_sales['ORDER_DATE'].iloc[i+1],
+            fillcolor=achievement_colors[i],
+            layer='below',
+            line_width=0,
+        )
+    
+    # Add last day rectangle if there's data
+    if len(daily_sales) > 0:
+        sales_plan_fig.add_vrect(
+            x0=daily_sales['ORDER_DATE'].iloc[-1],
+            x1=daily_sales['ORDER_DATE'].iloc[-1] + pd.Timedelta(days=1),
+            fillcolor=achievement_colors[-1],
+            layer='below',
+            line_width=0,
+        )
+
     # Add actual sales line
     sales_plan_fig.add_trace(go.Scatter(
-        x=monthly_sales['ORDER_DATE'],
-        y=monthly_sales['TOTAL_AMOUNT'],
+        x=daily_sales['ORDER_DATE'],
+        y=daily_sales['TOTAL_AMOUNT'],
         name='Actual Sales',
-        line=dict(color=PRIMARY_COLOR, width=3),
-        mode='lines+markers'
-    ))
-    
-    # Add planned sales line
-    sales_plan_fig.add_trace(go.Scatter(
-        x=monthly_sales['ORDER_DATE'],
-        y=monthly_sales['PLANNED_AMOUNT'],
-        name='Planned Sales',
-        line=dict(color=SECONDARY_COLOR, width=3, dash='dash'),
+        line=dict(color=PRIMARY_COLOR, width=2),
         mode='lines'
     ))
-    
-    # Add achievement rate as background color only for months with plan data
-    for i in range(len(monthly_sales)-1):
-        if monthly_sales['PLANNED_AMOUNT'].iloc[i] > 0:  # Only add color if there is plan data
-            achievement_rate = monthly_sales['ACHIEVEMENT_RATE'].iloc[i]
-            color = SUCCESS_COLOR if achievement_rate >= 100 else WARNING_COLOR if achievement_rate >= 80 else DANGER_COLOR
-            opacity = 0.1  # Light background
-            
-            sales_plan_fig.add_vrect(
-                x0=monthly_sales['ORDER_DATE'].iloc[i],
-                x1=monthly_sales['ORDER_DATE'].iloc[i+1],
-                fillcolor=color,
-                opacity=opacity,
-                layer="below",
-                line_width=0,
-                name=f"Achievement {achievement_rate:.1f}%"
-            )
 
+    # Add planned sales line
+    sales_plan_fig.add_trace(go.Scatter(
+        x=daily_sales['ORDER_DATE'],
+        y=daily_sales['PLANNED_AMOUNT'],
+        name='Planned Sales',
+        line=dict(color=SECONDARY_COLOR, width=2, dash='dash'),
+        mode='lines'
+    ))
+
+    # Update layout for daily view
     sales_plan_fig.update_layout(
         title='Sales Performance vs Plan',
-        xaxis_title='Month',
+        xaxis_title='Date',
         yaxis_title='Amount ($)',
         hovermode='x unified',
         showlegend=True,
@@ -579,8 +638,8 @@ with tabs[1]:
     # Add KPI metrics for sales performance
     col1, col2, col3 = metrics.columns(3)
 
-    total_actual = monthly_sales['TOTAL_AMOUNT'].sum()
-    total_planned = monthly_sales['PLANNED_AMOUNT'].sum()
+    total_actual = daily_sales['TOTAL_AMOUNT'].sum()
+    total_planned = daily_sales['PLANNED_AMOUNT'].sum()
     overall_achievement = (total_actual / total_planned * 100) if total_planned > 0 else 0
 
     with col1:
@@ -605,24 +664,22 @@ with tabs[1]:
             achievement_color
         ), unsafe_allow_html=True)
 
-    
-    # Prepare time series data for trend visualization
-    order_fact['ORDER_DATE'] = pd.to_datetime(order_fact['ORDER_DATE'])
-    monthly_sales = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='M')).agg({
-        'TOTAL_AMOUNT': 'sum'
-    }).reset_index()
-    monthly_sales['ORDER_DATE'] = monthly_sales['ORDER_DATE'].astype(str)
-    
-
-
-    # Product Details section
-    # st.markdown('#### Product Details')
+# Product Analysis tab
 with tabs[2]:
+    # Check if this tab is active
+    if st.session_state.active_tab != 2:
+        st.session_state.active_tab = 2
+        
     st.markdown("## Product Analysis")
 
-    # Merge relevant tables
-    product_sales = (order_line.merge(order_fact, on='ORDER_ID')
-                    .merge(product, on='PRODUCT_ID'))
+    # Get filtered data
+    product = filtered_data['product']
+    order_line = filtered_data['order_line']
+    order_fact = filtered_data['order_fact']
+
+    # Merge relevant tables efficiently
+    product_sales = (order_line.merge(order_fact[['ORDER_ID', 'ORDER_DATE', 'ORDER_STATUS']], on='ORDER_ID')
+                    .merge(product[['PRODUCT_ID', 'NAME', 'CATEGORY', 'BRAND', 'PRICE']], on='PRODUCT_ID'))
     
     # Calculate product metrics
     product_sales['REVENUE'] = product_sales['QUANTITY'] * product_sales['UNIT_PRICE']
@@ -664,7 +721,7 @@ with tabs[2]:
     col1, col2 = st.columns(2)
     
     with col1:
-        # Category Distribution
+        # Category Distribution - use groupby for efficiency
         category_dist = product.groupby('CATEGORY').agg({
             'PRODUCT_ID': 'count',
             'ACTIVE': lambda x: (x == True).sum()
@@ -712,15 +769,15 @@ with tabs[2]:
         st.plotly_chart(fig_price, use_container_width=True)
     
     # Top Products Analysis
-    # Prepare data for sunburst chart
-    product_hierarchy = product.groupby(['CATEGORY', 'BRAND', 'NAME'])['PRICE'].sum().reset_index()
+    # Prepare data for sunburst chart by calculating sales - use groupby for efficiency
+    product_sales_hierarchy = product_sales.groupby(['CATEGORY', 'BRAND', 'NAME'])['REVENUE'].sum().reset_index()
     
     # Create sunburst chart
     fig_sunburst = px.sunburst(
-        product_hierarchy,
-        path=['CATEGORY', 'BRAND', 'NAME'],
-        values='PRICE',
-        title='Product Price Hierarchy',
+        product_sales_hierarchy,
+        path=['CATEGORY', 'BRAND', 'NAME'], 
+        values='REVENUE',
+        title='Product Sales Distribution',
         #color_discrete_sequence=BASE_PALETTE
     )
     
@@ -730,14 +787,15 @@ with tabs[2]:
     )
     
     fig_sunburst.update_traces(
-        textinfo='label+percent parent'
+        textinfo='label+value+percent parent',
+        texttemplate='%{label}<br>$%{value:,.2f}<br>%{percentParent:.1%}'
     )
     
     st.plotly_chart(fig_sunburst, use_container_width=True)
     
     st.markdown("### Top Products Performance")
 
-    # Calculate product performance metrics
+    # Calculate product performance metrics - use groupby for efficiency
     product_performance = product_sales.groupby(['PRODUCT_ID', 'NAME', 'CATEGORY', 'PRICE']).agg({
         'QUANTITY': 'sum',
         'REVENUE': 'sum',
@@ -756,7 +814,7 @@ with tabs[2]:
         color='CATEGORY',
         title='Top 10 Products by Revenue',
         orientation='h',
-        color_discrete_sequence=BASE_PALETTE,
+        color_discrete_sequence=ACCENT_PALETTE,
         text='REVENUE'
     )
     
@@ -802,6 +860,7 @@ with tabs[2]:
     # Brand Analysis
     st.markdown("### Brand Performance")
     
+    # Use groupby for efficiency
     brand_performance = product_sales.groupby('BRAND').agg({
         'REVENUE': 'sum',
         'QUANTITY': 'sum',
@@ -811,38 +870,16 @@ with tabs[2]:
     
     brand_performance = brand_performance.sort_values('REVENUE', ascending=False)
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Brand Revenue Share
-        fig_brand = px.pie(
-            brand_performance,
-            values='REVENUE',
-            names='BRAND',
-            title='Revenue Share by Brand',
-            color_discrete_sequence=BASE_PALETTE
-        )
-        fig_brand.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_brand, use_container_width=True)
-    
-    with col2:
-        # Brand Product Count
-        fig_brand_products = px.bar(
-            brand_performance,
-            x='BRAND',
-            y=['PRODUCT_ID', 'ORDER_ID'],
-            title='Brand Performance Metrics',
-            barmode='group',
-            labels={'PRODUCT_ID': 'Number of Products', 'ORDER_ID': 'Number of Orders'},
-            color_discrete_sequence=[PRIMARY_COLOR, SECONDARY_COLOR]
-        )
-        fig_brand_products.update_layout(
-            xaxis_title='Brand',
-            yaxis_title='Count',
-            legend_title='Metric',
-            xaxis={'tickangle': 45}
-        )
-        st.plotly_chart(fig_brand_products, use_container_width=True)
+    # Brand Revenue Share
+    fig_brand = px.pie(
+        brand_performance,
+        values='REVENUE',
+        names='BRAND',
+        title='Revenue Share by Brand',
+        color_discrete_sequence=ACCENT_PALETTE
+    )
+    fig_brand.update_traces(textposition='inside', textinfo='percent')
+    st.plotly_chart(fig_brand, use_container_width=True)
 
 # Customer Analysis tab
 with tabs[3]:
@@ -1161,10 +1198,10 @@ with tabs[4]:
     st.markdown("## Digital Analysis")
     
     # Calculate key metrics
-    total_events = len(digital_event)
-    total_visitors = page_performance['UNIQUE_VISITORS'].sum()
-    avg_conversion = page_performance['CONVERSION_RATE'].mean() * 100
-    avg_bounce = page_performance['BOUNCE_RATE'].mean() * 100
+    total_events = len(filtered_data['digital_event'])
+    total_visitors = filtered_data['page_performance']['UNIQUE_VISITORS'].sum()
+    avg_conversion = filtered_data['page_performance']['CONVERSION_RATE'].mean() * 100
+    avg_bounce = filtered_data['page_performance']['BOUNCE_RATE'].mean() * 100
     
     # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -1199,7 +1236,7 @@ with tabs[4]:
     
     with col1:
         # Event Type Distribution
-        event_counts = digital_event['EVENT_TYPE'].value_counts().reset_index()
+        event_counts = filtered_data['digital_event']['EVENT_TYPE'].value_counts().reset_index()
         event_counts.columns = ['EVENT_TYPE', 'COUNT']
         
         fig_events = px.bar(
@@ -1227,7 +1264,7 @@ with tabs[4]:
     
     with col2:
         # Device Type Distribution
-        device_counts = digital_event['DEVICE_TYPE'].value_counts().reset_index()
+        device_counts = filtered_data['digital_event']['DEVICE_TYPE'].value_counts().reset_index()
         device_counts.columns = ['DEVICE_TYPE', 'COUNT']
         device_counts['PERCENTAGE'] = (device_counts['COUNT'] / device_counts['COUNT'].sum() * 100).round(1)
         
@@ -1252,8 +1289,8 @@ with tabs[4]:
     st.markdown("### Traffic Analysis")
     
     # Prepare monthly data
-    page_performance['DATE'] = pd.to_datetime(page_performance['DATE'])
-    monthly_traffic = page_performance.groupby(pd.Grouper(key='DATE', freq='M')).agg({
+    filtered_data['page_performance']['DATE'] = pd.to_datetime(filtered_data['page_performance']['DATE'])
+    monthly_traffic = filtered_data['page_performance'].groupby(pd.Grouper(key='DATE', freq='M')).agg({
         'VIEWS': 'sum',
         'UNIQUE_VISITORS': 'sum',
         'BOUNCE_RATE': 'mean',
@@ -1329,89 +1366,9 @@ with tabs[4]:
     )
     
     st.plotly_chart(fig_rates, use_container_width=True)
-    
-    # User Journey Analysis
-    st.markdown("### User Journey Analysis")
-    
-    # Calculate event sequence metrics
-    event_sequence = digital_event.sort_values('EVENT_DATE').groupby('SESSION_ID')['EVENT_TYPE'].agg(list).reset_index()
-    
-    # Calculate common paths
-    def get_journey_path(events):
-        return ' → '.join(events[:3])  # Show first 3 events in journey
-    
-    event_sequence['JOURNEY_PATH'] = event_sequence['EVENT_TYPE'].apply(get_journey_path)
-    top_paths = event_sequence['JOURNEY_PATH'].value_counts().head(5).reset_index()
-    top_paths.columns = ['Path', 'Count']
-    
-
-    fig_paths = px.bar(
-        top_paths,
-        x='Count',
-        y='Path',
-        orientation='h',
-        title='Most Common User Journeys',
-        color='Count',
-        color_continuous_scale=[PRIMARY_COLOR, SUCCESS_COLOR]
-    )
-    
-    fig_paths.update_layout(
-        yaxis={'categoryorder': 'total ascending'},
-        xaxis_title='Number of Sessions',
-        yaxis_title='Journey Path',
-        showlegend=False
-    )
-    
-    st.plotly_chart(fig_paths, use_container_width=True)
-    # Event Success Analysis
-    st.markdown("### Event Success Analysis")
-    
-    # Filter for conversion events (key actions that indicate user engagement/conversion)
-    conversion_events = digital_event[digital_event['EVENT_TYPE'].isin([
-        'CHECKOUT_COMPLETE',
-        'ACCOUNT_SIGNUP',
-        'ADD_TO_CART'
-    ])]
-    
-    # Calculate success rates for these events
-    success_rates = conversion_events.groupby('EVENT_TYPE').agg({
-        'EVENT_VALUE': lambda x: (x.astype(float) > 0).mean()  # Success if event value > 0
-    }).reset_index()
-    
-    success_rates.columns = ['EVENT_TYPE', 'SUCCESS_RATE']
-    success_rates['SUCCESS_RATE'] = (success_rates['SUCCESS_RATE'] * 100).round(1)
-    
-
-    fig_success = px.bar(
-        success_rates,
-        x='EVENT_TYPE',
-        y='SUCCESS_RATE',
-        title='Success Rates for Key Events',
-        color='EVENT_TYPE',
-        color_discrete_map={
-            'CHECKOUT_COMPLETE': SUCCESS_COLOR,
-            'ACCOUNT_SIGNUP': PRIMARY_COLOR,
-            'ADD_TO_CART': SECONDARY_COLOR
-        },
-        text='SUCCESS_RATE'
-    )
-    
-    fig_success.update_traces(
-        texttemplate='%{text:.1f}%',
-        textposition='outside'
-    )
-    
-    fig_success.update_layout(
-        xaxis_title='Event Type',
-        yaxis_title='Success Rate (%)',
-        showlegend=False
-    )
-    
-    st.plotly_chart(fig_success, use_container_width=True)
-
 
     funnel_events = ['PAGE_VIEW', 'PRODUCT_VIEW', 'ADD_TO_CART', 'CHECKOUT_START', 'CHECKOUT_COMPLETE']
-    funnel_counts = digital_event[digital_event['EVENT_TYPE'].isin(funnel_events)]['EVENT_TYPE'].value_counts()
+    funnel_counts = filtered_data['digital_event'][filtered_data['digital_event']['EVENT_TYPE'].isin(funnel_events)]['EVENT_TYPE'].value_counts()
     funnel_data = pd.DataFrame({
         'EVENT_TYPE': funnel_events,
         'COUNT': [funnel_counts.get(event, 0) for event in funnel_events]
@@ -1432,8 +1389,20 @@ with tabs[4]:
 
 # Inventory Analysis tab
 with tabs[5]:
+    # Check if this tab is active
+    if st.session_state.active_tab != 5:
+        st.session_state.active_tab = 5
+        
     st.markdown("## Inventory Analysis")
 
+    # Get filtered data
+    inventory = filtered_data['inventory']
+    product = filtered_data['product']
+    facility = filtered_data['facility']
+    
+    # Check if product_variant is available in the filtered data
+    has_product_variants = 'product_variant' in filtered_data
+    
     # Calculate key metrics
     total_inventory = inventory['QUANTITY'].sum()
     total_products_in_stock = inventory['PRODUCT_ID'].nunique()
@@ -1468,6 +1437,7 @@ with tabs[5]:
         ), unsafe_allow_html=True)
 
     # Merge inventory with product data for analysis
+    # Use the filtered product data based on category selection
     inventory_analysis = inventory.merge(
         product[['PRODUCT_ID', 'NAME', 'CATEGORY', 'BRAND']], 
         on='PRODUCT_ID'
@@ -1478,161 +1448,125 @@ with tabs[5]:
 
     # Inventory by Category Analysis
     st.markdown("### Inventory by Category")
-    col1, col2 = st.columns(2)
 
-    with col1:
         # Category Distribution
-        category_inventory = inventory_analysis.groupby('CATEGORY').agg({
-            'QUANTITY': 'sum',
-            'PRODUCT_ID': 'nunique'
-        }).reset_index()
+    category_inventory = inventory_analysis.groupby('CATEGORY').agg({
+        'QUANTITY': 'sum',
+        'PRODUCT_ID': 'nunique'
+    }).reset_index()
 
-        fig_category = px.pie(
-            category_inventory,
-            values='QUANTITY',
-            names='CATEGORY',
-            title='Total Inventory by Category',
-            color_discrete_sequence=BASE_PALETTE
-        )
+    # Products per Category
+    fig_products = px.bar(
+        category_inventory,
+        x='CATEGORY',
+        y='PRODUCT_ID',
+        title='Number of Products by Category',
+        color='CATEGORY',
+        #color_discrete_sequence=BASE_PALETTE,
+        labels={'PRODUCT_ID': 'Number of Products'}
+    )
 
-        fig_category.update_traces(
-            textposition='inside',
-            textinfo='percent+label'
-        )
+    fig_products.update_layout(
+        showlegend=False,
+        xaxis_title='Category',
+        yaxis_title='Number of Products'
+    )
 
-        st.plotly_chart(fig_category, use_container_width=True)
-
-    with col2:
-        # Products per Category
-        fig_products = px.bar(
-            category_inventory,
-            x='CATEGORY',
-            y='PRODUCT_ID',
-            title='Number of Products by Category',
-            color='CATEGORY',
-            color_discrete_sequence=BASE_PALETTE,
-            labels={'PRODUCT_ID': 'Number of Products'}
-        )
-
-        fig_products.update_layout(
-            showlegend=False,
-            xaxis_title='Category',
-            yaxis_title='Number of Products'
-        )
-
-        st.plotly_chart(fig_products, use_container_width=True)
-
+    st.plotly_chart(fig_products, use_container_width=True)
     # Inventory Status Analysis
     st.markdown("### Inventory Status Analysis")
-
     def get_inventory_status(quantity):
         if quantity <= 10:
-            return "Critical Low"
+            return ("Critical Low", "#FF4B4B")  # Soft red
         elif quantity <= 50:
-            return "Low"
+            return ("Low", "#FFA07A")  # Light salmon
         elif quantity <= 200:
-            return "Medium"
-        return "High"
+            return ("Medium", "#FFD700")  # Gold
+        return ("High", "#32CD32")  # Darker lime green
 
-    inventory_analysis['STATUS'] = inventory_analysis['QUANTITY'].apply(get_inventory_status)
+    # Add status and color to inventory analysis
+    inventory_analysis[['STATUS', 'STATUS_COLOR']] = pd.DataFrame(inventory_analysis['QUANTITY'].apply(get_inventory_status).tolist(), index=inventory_analysis.index)
 
     # Create inventory status visualization
     col1, col2 = st.columns(2)
 
     with col1:
         # Status Distribution
-        status_counts = inventory_analysis.groupby('STATUS').size().reset_index(name='COUNT')
+        status_counts = inventory_analysis.groupby(['STATUS', 'STATUS_COLOR']).size().reset_index(name='COUNT')
         
         fig_status = px.pie(
             status_counts,
-            values='COUNT',
+            values='COUNT', 
             names='STATUS',
             title='Inventory Status Distribution',
             color='STATUS',
-            color_discrete_sequence=[DANGER_COLOR, WARNING_COLOR, SECONDARY_COLOR, SUCCESS_COLOR]
+            color_discrete_map=dict(zip(status_counts['STATUS'], status_counts['STATUS_COLOR']))
         )
 
         fig_status.update_traces(
             textposition='inside',
-            textinfo='percent+label'
+            textinfo='percent'
         )
 
         st.plotly_chart(fig_status, use_container_width=True)
-
     with col2:
         # Status by Category
-        status_category = inventory_analysis.groupby(['CATEGORY', 'STATUS']).size().reset_index(name='COUNT')
+        status_category = inventory_analysis.groupby(['CATEGORY', 'STATUS', 'STATUS_COLOR']).size().reset_index(name='COUNT')
+        
+        # Create custom category order
+        status_order = ['High', 'Medium', 'Low', 'Critical Low']
         
         fig_status_category = px.bar(
             status_category,
             x='CATEGORY',
-            y='COUNT',
+            y='COUNT', 
             color='STATUS',
             title='Inventory Status by Category',
-            color_discrete_sequence=[DANGER_COLOR, WARNING_COLOR, SECONDARY_COLOR, SUCCESS_COLOR],
-            barmode='stack'
+            color_discrete_map=dict(zip(status_category['STATUS'], status_category['STATUS_COLOR'])),
+            barmode='stack',
+            category_orders={'STATUS': status_order}
         )
 
         st.plotly_chart(fig_status_category, use_container_width=True)
 
-    # Facility Analysis
-    st.markdown("### Facility Analysis")
-
-    # Calculate inventory by facility type
-    facility_inventory = inventory_analysis.groupby(['FACILITY_TYPE', 'FACILITY_NAME']).agg({
-        'QUANTITY': 'sum',
-        'PRODUCT_ID': 'nunique'
-    }).reset_index()
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        # Inventory by Facility Type
-        facility_type_summary = facility_inventory.groupby('FACILITY_TYPE').agg({
-            'QUANTITY': 'sum'
-        }).reset_index()
-
-        fig_facility = px.pie(
-            facility_type_summary,
-            values='QUANTITY',
-            names='FACILITY_TYPE',
-            title='Inventory Distribution by Facility Type',
-            color_discrete_sequence=BASE_PALETTE
-        )
-
-        fig_facility.update_traces(
-            textposition='inside',
-            textinfo='percent+label'
-        )
-
-        st.plotly_chart(fig_facility, use_container_width=True)
-
-    with col2:
-        # Top Facilities by Inventory
-        fig_top_facilities = px.bar(
-            facility_inventory.nlargest(10, 'QUANTITY'),
-            x='FACILITY_NAME',
-            y='QUANTITY',
-            color='FACILITY_TYPE',
-            title='Top 10 Facilities by Inventory',
-            color_discrete_sequence=BASE_PALETTE
-        )
-
-        fig_top_facilities.update_layout(
-            xaxis_tickangle=45,
-            xaxis_title='Facility',
-            yaxis_title='Total Inventory'
-        )
-
-        st.plotly_chart(fig_top_facilities, use_container_width=True)
-
     # Critical Inventory Alerts
     st.markdown("### Critical Inventory Alerts")
-    critical_inventory = inventory_analysis[inventory_analysis['STATUS'] == 'Critical Low'].sort_values('QUANTITY')
+    
+    # Group by product to get total quantity across all facilities
+    product_inventory = inventory_analysis.groupby(['PRODUCT_ID', 'NAME', 'CATEGORY']).agg({
+        'QUANTITY': 'sum'
+    }).reset_index()
+    
+    # Apply status to aggregated product quantities
+    product_inventory['STATUS'] = product_inventory['QUANTITY'].apply(get_inventory_status)
+    
+    # Get products with critically low inventory
+    critical_products = product_inventory[product_inventory['STATUS'] == 'Critical Low'].sort_values('QUANTITY')
+    
+    # For the detailed view, get all inventory records for these critical products
+    critical_inventory = inventory_analysis[
+        inventory_analysis['PRODUCT_ID'].isin(critical_products['PRODUCT_ID'])
+    ].sort_values(['PRODUCT_ID', 'QUANTITY'])
 
-    if len(critical_inventory) > 0:
-        st.warning(f"⚠️ {len(critical_inventory)} products have critically low inventory (10 or fewer units)")
+    # Display critical inventory alerts
+    if len(critical_products) > 0:
+        st.warning(f"⚠️ {len(critical_products)} products have critically low inventory (10 or fewer units total)")
         
+        # Show aggregated product view first
+        st.subheader("Critical Products (Aggregated)")
+        st.dataframe(
+            critical_products[['NAME', 'CATEGORY', 'QUANTITY']],
+            column_config={
+                'NAME': 'Product Name',
+                'CATEGORY': 'Category',
+                'QUANTITY': 'Total Quantity'
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+        
+        # Show detailed inventory by facility
+        st.subheader("Critical Inventory by Facility")
         st.dataframe(
             critical_inventory[['NAME', 'CATEGORY', 'QUANTITY', 'FACILITY_NAME']],
             column_config={
@@ -1670,7 +1604,16 @@ with tabs[5]:
 
 # Campaign Analysis tab
 with tabs[6]:
+    # Check if this tab is active
+    if st.session_state.active_tab != 6:
+        st.session_state.active_tab = 6
+        
     st.markdown("## Campaign Analysis")
+
+    # Get filtered data
+    campaign = data['campaign']
+    order_fact = data['order_fact']
+    order_campaign_attribution = data['order_campaign_attribution']
 
     # Merge campaign data with attribution and order data
     campaign_performance = (order_campaign_attribution.merge(
@@ -1681,15 +1624,12 @@ with tabs[6]:
         on='ORDER_ID'
     ))
     
-    # Clean budget data - remove '$' and ',' and convert to float
-    campaign['BUDGET'] = campaign['BUDGET'].str.replace('$', '').str.replace(',', '').astype(float)
-    
     # Calculate attributed revenue
     campaign_performance['ATTRIBUTED_REVENUE'] = campaign_performance['TOTAL_AMOUNT'] * campaign_performance['CONTRIBUTION_PERCENT']
 
     # Calculate key metrics
     total_campaigns = len(campaign)
-    active_campaigns = len(campaign[pd.to_datetime(campaign['END_DATE']) >= pd.Timestamp.now()])
+    active_campaigns = len(campaign[campaign['END_DATE'] >= pd.Timestamp.now()])
     total_budget = campaign['BUDGET'].sum()
     avg_campaign_budget = total_budget / total_campaigns if total_campaigns > 0 else 0
 
@@ -1743,7 +1683,7 @@ with tabs[6]:
         
         fig_budget.update_traces(
             textposition='inside',
-            textinfo='percent+label'
+            textinfo='percent'
         )
         
         st.plotly_chart(fig_budget, use_container_width=True)
@@ -1768,33 +1708,6 @@ with tabs[6]:
         
         st.plotly_chart(fig_count, use_container_width=True)
 
-    # Campaign Timeline Analysis
-    st.markdown("### Campaign Timeline")
-    
-    # Prepare timeline data
-    campaign['START_DATE'] = pd.to_datetime(campaign['START_DATE'])
-    campaign['END_DATE'] = pd.to_datetime(campaign['END_DATE'])
-    
-    # Create timeline visualization
-    fig_timeline = px.timeline(
-        campaign,
-        x_start='START_DATE',
-        x_end='END_DATE',
-        y='CAMPAIGN_NAME',
-        color='CAMPAIGN_TYPE',
-        hover_data=['OBJECTIVE', 'TARGET_SEGMENT', 'BUDGET'],
-        title='Campaign Timeline',
-        color_discrete_sequence=BASE_PALETTE
-    )
-    
-    fig_timeline.update_layout(
-        xaxis_title='Date',
-        yaxis_title='Campaign Name',
-        height=400
-    )
-    
-    st.plotly_chart(fig_timeline, use_container_width=True)
-
     # Campaign Objectives Analysis
     st.markdown("### Campaign Objectives")
     
@@ -1814,7 +1727,7 @@ with tabs[6]:
             title='Number of Campaigns by Objective',
             color='OBJECTIVE',
             labels={'CAMPAIGN_ID': 'Number of Campaigns'},
-            color_discrete_sequence=BASE_PALETTE
+            color_discrete_sequence=ACCENT_PALETTE
         )
         
         fig_objectives.update_layout(
@@ -1833,7 +1746,7 @@ with tabs[6]:
             values='BUDGET',
             names='OBJECTIVE',
             title='Budget Allocation by Objective',
-            color_discrete_sequence=BASE_PALETTE
+            color_discrete_sequence=ACCENT_PALETTE
         )
         
         fig_objective_budget.update_traces(
@@ -1891,33 +1804,6 @@ with tabs[6]:
         
         st.plotly_chart(fig_segment_budget, use_container_width=True)
 
-    # Campaign Details Table
-    st.markdown("### Campaign Details")
-    
-    campaign_table = campaign.copy()
-    campaign_table['DURATION'] = (campaign_table['END_DATE'] - campaign_table['START_DATE']).dt.days
-    campaign_table['STATUS'] = np.where(campaign_table['END_DATE'] >= pd.Timestamp.now(), 'Active', 'Completed')
-    
-    st.dataframe(
-        campaign_table[[
-            'CAMPAIGN_NAME', 'CAMPAIGN_TYPE', 'OBJECTIVE', 'TARGET_SEGMENT',
-            'START_DATE', 'END_DATE', 'DURATION', 'BUDGET', 'STATUS'
-        ]].sort_values('START_DATE', ascending=False),
-        column_config={
-            'CAMPAIGN_NAME': 'Campaign Name',
-            'CAMPAIGN_TYPE': 'Type',
-            'OBJECTIVE': 'Objective',
-            'TARGET_SEGMENT': 'Target Segment',
-            'START_DATE': 'Start Date',
-            'END_DATE': 'End Date',
-            'DURATION': 'Duration (Days)',
-            'BUDGET': st.column_config.NumberColumn('Budget', format="$%.2f"),
-            'STATUS': 'Status'
-        },
-        hide_index=True,
-        use_container_width=True
-    )
-
     # Campaign Attribution Analysis
     if len(campaign_performance) > 0:
         
@@ -1940,7 +1826,7 @@ with tabs[6]:
             color='CAMPAIGN_TYPE',
             title='Top 10 Campaigns by Attributed Revenue',
             text=top_attribution['ATTRIBUTED_REVENUE'].apply(lambda x: f'${x:,.2f}'),
-            color_discrete_sequence=BASE_PALETTE
+            color_discrete_sequence=ACCENT_PALETTE
         )
         
         fig_attribution.update_layout(
@@ -1951,4 +1837,3 @@ with tabs[6]:
         )
         
         st.plotly_chart(fig_attribution, use_container_width=True)
-
