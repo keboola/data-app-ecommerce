@@ -1665,7 +1665,9 @@ with tabs[6]:
         # Budget by Campaign Type
         # Create a color map to ensure consistent colors across both charts
         campaign_types = type_performance['CAMPAIGN_TYPE'].unique()
-        color_map = dict(zip(campaign_types, BASE_PALETTE[:len(campaign_types)]))
+        # Use a different color palette from plotly express
+        custom_colors = px.colors.qualitative.Set3[:len(campaign_types)]
+        color_map = dict(zip(campaign_types, custom_colors))
 
         # Budget by Campaign Type
         fig_budget = px.pie(
@@ -1715,6 +1717,11 @@ with tabs[6]:
     col1, col2 = st.columns(2)
     
     with col1:
+        # Create a color map to ensure consistent colors across both charts
+        objectives = objective_counts['OBJECTIVE'].unique()
+        custom_colors = px.colors.qualitative.Accent[:len(objectives)]
+        color_map = dict(zip(objectives, custom_colors))
+
         # Number of Campaigns by Objective
         fig_objectives = px.bar(
             objective_counts,
@@ -1723,7 +1730,7 @@ with tabs[6]:
             title='Number of Campaigns by Objective',
             color='OBJECTIVE',
             labels={'CAMPAIGN_ID': 'Number of Campaigns'},
-            color_discrete_sequence=ACCENT_PALETTE
+            color_discrete_map=color_map
         )
         
         fig_objectives.update_layout(
@@ -1742,7 +1749,8 @@ with tabs[6]:
             values='BUDGET',
             names='OBJECTIVE',
             title='Budget Allocation by Objective',
-            color_discrete_sequence=ACCENT_PALETTE
+            color='OBJECTIVE',
+            color_discrete_map=color_map
         )
         
         fig_objective_budget.update_traces(
