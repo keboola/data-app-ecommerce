@@ -28,7 +28,7 @@ st.markdown(
     """
     <div style="display: flex; align-items: center;">
         <img src="https://assets-global.website-files.com/5e21dc6f4c5acf29c35bb32c/5e21e66410e34945f7f25add_Keboola_logo.svg" alt="Keboola Logo" style="height: 55px; margin-right: 15px;">
-        <h1 style="margin: 0;">E-commerce Chatbot</h1>
+        <h1 style="margin: 0;">E-commerce Assistant</h1>
     </div>
     """,
     unsafe_allow_html=True

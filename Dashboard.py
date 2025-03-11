@@ -8,7 +8,7 @@ from datetime import datetime
 
 from keboola_streamlit import KeboolaStreamlit
 
-
+st.set_page_config(page_title="E-commerce Report", layout="wide")
 # Constants
 # Simplified color palette
 PRIMARY_COLOR = '#1E88E5'  # Main blue
@@ -88,12 +88,6 @@ CAMPAIGN_COLORS = {
     'TV': '#E3F2FD'
 }
 
-# Page Configuration
-st.set_page_config(
-    page_title="E-commerce Dashboard",
-    layout="wide",
-    page_icon="🛍️",
-)
 
 st.markdown("""
 <style>
@@ -165,29 +159,29 @@ st.markdown("""
 
 data = {}
 # Load all data files
-data['campaign'] = pd.read_csv("/data/in/tables/CAMPAIGN.csv")
-data['campaign_event'] = pd.read_csv("/data/in/tables/CAMPAIGN_EVENT.csv")
-data['channel'] = pd.read_csv("/data/in/tables/CHANNEL.csv")
-data['company'] = pd.read_csv("/data/in/tables/COMPANY.csv")
-data['content_page'] = pd.read_csv("/data/in/tables/CONTENT_PAGE.csv")
-data['custom_attribute'] = pd.read_csv("/data/in/tables/CUSTOM_ATTRIBUTE.csv")
-data['customer'] = pd.read_csv("/data/in/tables/CUSTOMER.csv")
-data['digital_event'] = pd.read_csv("/data/in/tables/DIGITAL_EVENT.csv")
-data['digital_site'] = pd.read_csv("/data/in/tables/DIGITAL_SITE.csv")
-data['facility'] = pd.read_csv("/data/in/tables/FACILITY.csv")
-data['inventory'] = pd.read_csv("/data/in/tables/INVENTORY.csv")
-data['order_campaign_attribution'] = pd.read_csv("/data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
-data['order_event'] = pd.read_csv("/data/in/tables/ORDER_EVENT.csv")
-data['order_fact'] = pd.read_csv("/data/in/tables/ORDER_FACT.csv")
-data['order_fulfillment'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT.csv")
-data['order_fulfillment_line'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT_LINE.csv")
-data['order_line'] = pd.read_csv("/data/in/tables/ORDER_LINE.csv")
-data['order_status_history'] = pd.read_csv("/data/in/tables/ORDER_STATUS_HISTORY.csv")
-data['page_performance'] = pd.read_csv("/data/in/tables/PAGE_PERFORMANCE.csv")
-data['person'] = pd.read_csv("/data/in/tables/PERSON.csv")
-data['product'] = pd.read_csv("/data/in/tables/PRODUCT.csv")
-data['product_variant'] = pd.read_csv("/data/in/tables/PRODUCT_VARIANT.csv")
-data['sales_plan'] = pd.read_csv("/data/in/tables/SALES_PLAN.csv")
+data['campaign'] = pd.read_csv("data/in/tables/CAMPAIGN.csv")
+data['campaign_event'] = pd.read_csv("data/in/tables/CAMPAIGN_EVENT.csv")
+data['channel'] = pd.read_csv("data/in/tables/CHANNEL.csv")
+data['company'] = pd.read_csv("data/in/tables/COMPANY.csv")
+data['content_page'] = pd.read_csv("data/in/tables/CONTENT_PAGE.csv")
+data['custom_attribute'] = pd.read_csv("data/in/tables/CUSTOM_ATTRIBUTE.csv")
+data['customer'] = pd.read_csv("data/in/tables/CUSTOMER.csv")
+data['digital_event'] = pd.read_csv("data/in/tables/DIGITAL_EVENT.csv")
+data['digital_site'] = pd.read_csv("data/in/tables/DIGITAL_SITE.csv")
+data['facility'] = pd.read_csv("data/in/tables/FACILITY.csv")
+data['inventory'] = pd.read_csv("data/in/tables/INVENTORY.csv")
+data['order_campaign_attribution'] = pd.read_csv("data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
+data['order_event'] = pd.read_csv("data/in/tables/ORDER_EVENT.csv")
+data['order_fact'] = pd.read_csv("data/in/tables/ORDER_FACT.csv")
+data['order_fulfillment'] = pd.read_csv("data/in/tables/ORDER_FULFILLMENT.csv")
+data['order_fulfillment_line'] = pd.read_csv("data/in/tables/ORDER_FULFILLMENT_LINE.csv")
+data['order_line'] = pd.read_csv("data/in/tables/ORDER_LINE.csv")
+data['order_status_history'] = pd.read_csv("data/in/tables/ORDER_STATUS_HISTORY.csv")
+data['page_performance'] = pd.read_csv("data/in/tables/PAGE_PERFORMANCE.csv")
+data['person'] = pd.read_csv("data/in/tables/PERSON.csv")
+data['product'] = pd.read_csv("data/in/tables/PRODUCT.csv")
+data['product_variant'] = pd.read_csv("data/in/tables/PRODUCT_VARIANT.csv")
+data['sales_plan'] = pd.read_csv("data/in/tables/SALES_PLAN.csv")
 
 # Preprocess date columns to improve filtering performance
 data['order_fact']['ORDER_DATE'] = pd.to_datetime(data['order_fact']['ORDER_DATE'])
@@ -201,23 +195,20 @@ data['sales_plan']['PLAN_END_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_EN
 # Clean budget data
 data['campaign']['BUDGET'] = data['campaign']['BUDGET'].str.replace('$', '').str.replace(',', '').astype(float)
 
-# Display Keboola logo and title
-st.title("E-commerce Report")
+# Display title and Keboola logo in a row
+st.markdown(
+f'''
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px;">
+        <h1 style="margin: 0;">E-commerce Report</h1>
+        <img src="https://assets-global.website-files.com/5e21dc6f4c5acf29c35bb32c/5e21e66410e34945f7f25add_Keboola_logo.svg" alt="Logo" width="200">
+    </div>
+''',
+unsafe_allow_html=True)
+
 
 # Create sidebar filters
+
 with st.sidebar:
-    st.sidebar.markdown(
-    f'''
-        <div style="text-align: center; margin-top: 20px; margin-bottom: 40px;">
-            <img src="https://assets-global.website-files.com/5e21dc6f4c5acf29c35bb32c/5e21e66410e34945f7f25add_Keboola_logo.svg" alt="Logo" width="200">
-        </div>
-    ''',
-    unsafe_allow_html=True)
-
-
-    pg = st.navigation([st.Page("Dashboard.py"), st.Page("Assistant.py")])
-    pg.run()
-    st.markdown("""---""")
     st.subheader("Filters")
     
     # Date range filter
