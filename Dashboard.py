@@ -163,53 +163,43 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Cache data loading to improve performance
-@st.cache_data(ttl=3600)
-def load_data():
-    """Load and preprocess all data files"""
-    data = {}
-    
-    # Load all data files
-    data['campaign'] = pd.read_csv("/data/in/tables/CAMPAIGN.csv")
-    data['campaign_event'] = pd.read_csv("/data/in/tables/CAMPAIGN_EVENT.csv")
-    data['channel'] = pd.read_csv("/data/in/tables/CHANNEL.csv")
-    data['company'] = pd.read_csv("/data/in/tables/COMPANY.csv")
-    data['content_page'] = pd.read_csv("/data/in/tables/CONTENT_PAGE.csv")
-    data['custom_attribute'] = pd.read_csv("/data/in/tables/CUSTOM_ATTRIBUTE.csv")
-    data['customer'] = pd.read_csv("/data/in/tables/CUSTOMER.csv")
-    data['digital_event'] = pd.read_csv("/data/in/tables/DIGITAL_EVENT.csv")
-    data['digital_site'] = pd.read_csv("/data/in/tables/DIGITAL_SITE.csv")
-    data['facility'] = pd.read_csv("/data/in/tables/FACILITY.csv")
-    data['inventory'] = pd.read_csv("/data/in/tables/INVENTORY.csv")
-    data['order_campaign_attribution'] = pd.read_csv("/data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
-    data['order_event'] = pd.read_csv("/data/in/tables/ORDER_EVENT.csv")
-    data['order_fact'] = pd.read_csv("/data/in/tables/ORDER_FACT.csv")
-    data['order_fulfillment'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT.csv")
-    data['order_fulfillment_line'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT_LINE.csv")
-    data['order_line'] = pd.read_csv("/data/in/tables/ORDER_LINE.csv")
-    data['order_status_history'] = pd.read_csv("/data/in/tables/ORDER_STATUS_HISTORY.csv")
-    data['page_performance'] = pd.read_csv("/data/in/tables/PAGE_PERFORMANCE.csv")
-    data['person'] = pd.read_csv("/data/in/tables/PERSON.csv")
-    data['product'] = pd.read_csv("/data/in/tables/PRODUCT.csv")
-    data['product_variant'] = pd.read_csv("/data/in/tables/PRODUCT_VARIANT.csv")
-    data['sales_plan'] = pd.read_csv("/data/in/tables/SALES_PLAN.csv")
-    
-    # Preprocess date columns to improve filtering performance
-    data['order_fact']['ORDER_DATE'] = pd.to_datetime(data['order_fact']['ORDER_DATE'])
-    data['digital_event']['EVENT_DATE'] = pd.to_datetime(data['digital_event']['EVENT_DATE'])
-    data['page_performance']['DATE'] = pd.to_datetime(data['page_performance']['DATE'])
-    data['campaign']['START_DATE'] = pd.to_datetime(data['campaign']['START_DATE'])
-    data['campaign']['END_DATE'] = pd.to_datetime(data['campaign']['END_DATE'])
-    data['sales_plan']['PLAN_START_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_START_DATE'])
-    data['sales_plan']['PLAN_END_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_END_DATE'])
-    
-    # Clean budget data
-    data['campaign']['BUDGET'] = data['campaign']['BUDGET'].str.replace('$', '').str.replace(',', '').astype(float)
-    
-    return data
+data = {}
+# Load all data files
+data['campaign'] = pd.read_csv("/data/in/tables/CAMPAIGN.csv")
+data['campaign_event'] = pd.read_csv("/data/in/tables/CAMPAIGN_EVENT.csv")
+data['channel'] = pd.read_csv("/data/in/tables/CHANNEL.csv")
+data['company'] = pd.read_csv("/data/in/tables/COMPANY.csv")
+data['content_page'] = pd.read_csv("/data/in/tables/CONTENT_PAGE.csv")
+data['custom_attribute'] = pd.read_csv("/data/in/tables/CUSTOM_ATTRIBUTE.csv")
+data['customer'] = pd.read_csv("/data/in/tables/CUSTOMER.csv")
+data['digital_event'] = pd.read_csv("/data/in/tables/DIGITAL_EVENT.csv")
+data['digital_site'] = pd.read_csv("/data/in/tables/DIGITAL_SITE.csv")
+data['facility'] = pd.read_csv("/data/in/tables/FACILITY.csv")
+data['inventory'] = pd.read_csv("/data/in/tables/INVENTORY.csv")
+data['order_campaign_attribution'] = pd.read_csv("/data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
+data['order_event'] = pd.read_csv("/data/in/tables/ORDER_EVENT.csv")
+data['order_fact'] = pd.read_csv("/data/in/tables/ORDER_FACT.csv")
+data['order_fulfillment'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT.csv")
+data['order_fulfillment_line'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT_LINE.csv")
+data['order_line'] = pd.read_csv("/data/in/tables/ORDER_LINE.csv")
+data['order_status_history'] = pd.read_csv("/data/in/tables/ORDER_STATUS_HISTORY.csv")
+data['page_performance'] = pd.read_csv("/data/in/tables/PAGE_PERFORMANCE.csv")
+data['person'] = pd.read_csv("/data/in/tables/PERSON.csv")
+data['product'] = pd.read_csv("/data/in/tables/PRODUCT.csv")
+data['product_variant'] = pd.read_csv("/data/in/tables/PRODUCT_VARIANT.csv")
+data['sales_plan'] = pd.read_csv("/data/in/tables/SALES_PLAN.csv")
 
-# Load all data
-data = load_data()
+# Preprocess date columns to improve filtering performance
+data['order_fact']['ORDER_DATE'] = pd.to_datetime(data['order_fact']['ORDER_DATE'])
+data['digital_event']['EVENT_DATE'] = pd.to_datetime(data['digital_event']['EVENT_DATE'])
+data['page_performance']['DATE'] = pd.to_datetime(data['page_performance']['DATE'])
+data['campaign']['START_DATE'] = pd.to_datetime(data['campaign']['START_DATE'])
+data['campaign']['END_DATE'] = pd.to_datetime(data['campaign']['END_DATE'])
+data['sales_plan']['PLAN_START_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_START_DATE'])
+data['sales_plan']['PLAN_END_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_END_DATE'])
+
+# Clean budget data
+data['campaign']['BUDGET'] = data['campaign']['BUDGET'].str.replace('$', '').str.replace(',', '').astype(float)
 
 # Display Keboola logo and title
 st.markdown(
