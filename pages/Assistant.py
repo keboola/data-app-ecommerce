@@ -3,6 +3,7 @@ import openai
 import os
 
 from typing import List
+from datetime import datetime
 from tempfile import gettempdir
 from PIL import Image
 from io import BytesIO
@@ -26,14 +27,13 @@ for key, value in session_defaults.items():
 
 st.markdown(
     """
-    <div style="display: flex; align-items: center;">
-        <img src="https://assets-global.website-files.com/5e21dc6f4c5acf29c35bb32c/5e21e66410e34945f7f25add_Keboola_logo.svg" alt="Keboola Logo" style="height: 55px; margin-right: 15px;">
-        <h1 style="margin: 0;">E-commerce Assistant</h1>
+    <div style="display: flex; justify-content: flex-end; align-items: center;">
+        <img src="https://assets-global.website-files.com/5e21dc6f4c5acf29c35bb32c/5e21e66410e34945f7f25add_Keboola_logo.svg" alt="Keboola Logo" style="height: 40px;">
     </div>
     """,
     unsafe_allow_html=True
 )
-st.markdown("""---""")
+
 col1, col2, col3, col4, col5,col6 = st.columns(6)
 
 if st.sidebar.button("Clear Chat", type="tertiary"):
@@ -116,12 +116,13 @@ def create_thread(file_ids: List[str]) -> str:
         ])
         
         initial_content = f"""
+        Current date is {datetime.now().strftime('%B %d, %Y')}.
+        
         {st.secrets["initial_message"]}
         
         Available files:
         {file_info}
         """
-        
         thread = client.beta.threads.create(
             messages=[
                 {

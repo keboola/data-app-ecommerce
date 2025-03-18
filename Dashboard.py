@@ -3,12 +3,11 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import time
-from datetime import datetime
-
 from keboola_streamlit import KeboolaStreamlit
 
 st.set_page_config(page_title="E-commerce Report", layout="wide")
+keboola = KeboolaStreamlit(st.secrets["kbc_url"], st.secrets["kbc_token"])
+
 # Constants
 # Simplified color palette
 PRIMARY_COLOR = '#1E88E5'  # Main blue
@@ -35,15 +34,6 @@ ACCENT_PALETTE = [
     '#F44336'   # Red
 ]
 
-# Category colors (simplified)
-CATEGORY_COLORS = {
-    'Electronics': '#1E88E5',
-    'Clothing': '#42A5F5',
-    'Home': '#90CAF9',
-    'Beauty': '#BBDEFB',
-    'Food': '#E3F2FD'
-}
-
 # Segment colors (meaningful progression)
 SEGMENT_COLORS = {
     "Champions": '#1E88E5',
@@ -54,55 +44,16 @@ SEGMENT_COLORS = {
 
 # Order status colors (meaningful states)
 STATUS_COLORS = {
-    'Delivered': '#4CAF50',
-    'Shipped': '#1E88E5',
-    'Processing': '#FFC107',
-    'Created': '#90CAF9',
-    'Cancelled': '#F44336'
+    'Delivered': '#38a5a4',
+    'Shipped': '#1e6996',
+    'Processing': '#edad07',
+    'Completed': '#73af48',
+    'Cancelled': '#cc503e',
+    'Refunded': '#e27c03'
 }
-
-# Device type colors (simplified)
-DEVICE_COLORS = {
-    'Desktop': '#1E88E5',
-    'Mobile': '#42A5F5',
-    'Tablet': '#90CAF9'
-}
-
-# Event type colors (simplified)
-EVENT_COLORS = {
-    'PageView': '#1E88E5',
-    'AddToCart': '#42A5F5',
-    'Purchase': '#4CAF50',
-    'Search': '#90CAF9',
-    'ProductView': '#BBDEFB',
-    'Login': '#FFC107',
-    'Registration': '#FF9800'
-}
-
-# Campaign type colors (simplified)
-CAMPAIGN_COLORS = {
-    'Email': '#1E88E5',
-    'Social': '#42A5F5',
-    'Display': '#90CAF9',
-    'Search': '#BBDEFB',
-    'TV': '#E3F2FD'
-}
-
 
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1E88E5;
-        text-align: center;
-        margin-bottom: 1.5rem;
-    }
-    .sub-header {
-        font-size: 1.5rem;
-        color: #1E88E5;
-        margin-top: 1rem;
-        margin-bottom: 1rem;
-    }
     .metric-container {
         background-color: #F5F5F5;
         border-radius: 5px;
@@ -120,19 +71,6 @@ st.markdown("""
     .metric-value {
         font-size: 2rem;
         font-weight: bold;
-        color: #1E88E5;
-    }
-    .card {
-        border-radius: 5px;
-        background-color: #F5F5F5;
-        padding: 1.5rem;
-        margin-bottom: 1rem;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .card-title {
-        font-size: 1.2rem;
-        font-weight: bold;
-        margin-bottom: 0.5rem;
         color: #1E88E5;
     }
     .metric-row {
@@ -157,178 +95,165 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-data = {}
 # Load all data files
-data['campaign'] = pd.read_csv("/data/in/tables/CAMPAIGN.csv")
-data['campaign_event'] = pd.read_csv("/data/in/tables/CAMPAIGN_EVENT.csv")
-data['channel'] = pd.read_csv("/data/in/tables/CHANNEL.csv")
-data['company'] = pd.read_csv("/data/in/tables/COMPANY.csv")
-data['content_page'] = pd.read_csv("/data/in/tables/CONTENT_PAGE.csv")
-data['custom_attribute'] = pd.read_csv("/data/in/tables/CUSTOM_ATTRIBUTE.csv")
-data['customer'] = pd.read_csv("/data/in/tables/CUSTOMER.csv")
-data['digital_event'] = pd.read_csv("/data/in/tables/DIGITAL_EVENT.csv")
-data['digital_site'] = pd.read_csv("/data/in/tables/DIGITAL_SITE.csv")
-data['facility'] = pd.read_csv("/data/in/tables/FACILITY.csv")
-data['inventory'] = pd.read_csv("/data/in/tables/INVENTORY.csv")
-data['order_campaign_attribution'] = pd.read_csv("/data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
-data['order_event'] = pd.read_csv("/data/in/tables/ORDER_EVENT.csv")
-data['order_fact'] = pd.read_csv("/data/in/tables/ORDER_FACT.csv")
-data['order_fulfillment'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT.csv")
-data['order_fulfillment_line'] = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT_LINE.csv")
-data['order_line'] = pd.read_csv("/data/in/tables/ORDER_LINE.csv")
-data['order_status_history'] = pd.read_csv("/data/in/tables/ORDER_STATUS_HISTORY.csv")
-data['page_performance'] = pd.read_csv("/data/in/tables/PAGE_PERFORMANCE.csv")
-data['person'] = pd.read_csv("/data/in/tables/PERSON.csv")
-data['product'] = pd.read_csv("/data/in/tables/PRODUCT.csv")
-data['product_variant'] = pd.read_csv("/data/in/tables/PRODUCT_VARIANT.csv")
-data['sales_plan'] = pd.read_csv("/data/in/tables/SALES_PLAN.csv")
+campaign = pd.read_csv("/data/in/tables/CAMPAIGN.csv")
+campaign_event = pd.read_csv("/data/in/tables/CAMPAIGN_EVENT.csv")
 
-# Preprocess date columns to improve filtering performance
-data['order_fact']['ORDER_DATE'] = pd.to_datetime(data['order_fact']['ORDER_DATE'])
-data['digital_event']['EVENT_DATE'] = pd.to_datetime(data['digital_event']['EVENT_DATE'])
-data['page_performance']['DATE'] = pd.to_datetime(data['page_performance']['DATE'])
-data['campaign']['START_DATE'] = pd.to_datetime(data['campaign']['START_DATE'])
-data['campaign']['END_DATE'] = pd.to_datetime(data['campaign']['END_DATE'])
-data['sales_plan']['PLAN_START_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_START_DATE'])
-data['sales_plan']['PLAN_END_DATE'] = pd.to_datetime(data['sales_plan']['PLAN_END_DATE'])
+channel = pd.read_csv("/data/in/tables/CHANNEL.csv")
 
-# Clean budget data
-data['campaign']['BUDGET'] = data['campaign']['BUDGET'].str.replace('$', '').str.replace(',', '').astype(float)
+content_page = pd.read_csv("/data/in/tables/CONTENT_PAGE.csv")
+custom_attribute = pd.read_csv("/data/in/tables/CUSTOM_ATTRIBUTE.csv")
+customer = pd.read_csv("/data/in/tables/CUSTOMER.csv")
+digital_event = pd.read_csv("/data/in/tables/DIGITAL_EVENT.csv")
+digital_site = pd.read_csv("/data/in/tables/DIGITAL_SITE.csv")
 
-# Display title and Keboola logo in a row
-st.markdown(
-f'''
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px;">
-        <h1 style="margin: 0;">E-commerce Report</h1>
-        <img src="https://assets-global.website-files.com/5e21dc6f4c5acf29c35bb32c/5e21e66410e34945f7f25add_Keboola_logo.svg" alt="Logo" width="200">
-    </div>
-''',
-unsafe_allow_html=True)
+facility = pd.read_csv("/data/in/tables/FACILITY.csv")
+inventory = pd.read_csv("/data/in/tables/INVENTORY.csv")
+
+## ORDERS, SALES
+order_campaign_attribution = pd.read_csv("/data/in/tables/ORDER_CAMPAIGN_ATTRIBUTION.csv")
+order_event = pd.read_csv("/data/in/tables/ORDER_EVENT.csv")
+order_fact = pd.read_csv("/data/in/tables/ORDER_FACT.csv")
+order_fulfillment = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT.csv")
+order_fulfillment_line = pd.read_csv("/data/in/tables/ORDER_FULFILLMENT_LINE.csv")
+order_line = pd.read_csv("/data/in/tables/ORDER_LINE.csv")
+order_status_history = pd.read_csv("/data/in/tables/ORDER_STATUS_HISTORY.csv")
+
+page_performance = pd.read_csv("/data/in/tables/PAGE_PERFORMANCE.csv")
+
+product = pd.read_csv("/data/in/tables/PRODUCT.csv")
+product_variant = pd.read_csv("/data/in/tables/PRODUCT_VARIANT.csv")
+
+sales_plan = pd.read_csv("/data/in/tables/SALES_PLAN.csv")
+
+############### NOT USING ###############
+company = pd.read_csv("/data/in/tables/COMPANY.csv") 
+person = pd.read_csv("/data/in/tables/PERSON.csv") 
+############### NOT USING ###############
 
 
 # Create sidebar filters
 
 with st.sidebar:
     st.subheader("Filters")
-    
-    # Date range filter
-    min_date = data['order_fact']['ORDER_DATE'].min()
-    max_date = pd.Timestamp.today()
-    
+
     # Add date filter options
     date_filter_option = st.selectbox(
         "Date Filter Type",
         options=["Current Year", "Year to Date", "Custom"],
         index=0
     )
-    
-    # Calculate date ranges based on selection
+
+    # Date range filter
+    min_date = order_fact['ORDER_DATE'].min()
     today = pd.Timestamp.today()
+    
     current_year_start = pd.Timestamp(today.year, 1, 1)
     year_ago = today - pd.DateOffset(years=1)
     
+    # Current year from Jan 1st to today
     if date_filter_option == "Current Year":
-        # Current year from Jan 1st to today
         date_range = (current_year_start.date(), today.date())
+    # Last 365 days
     elif date_filter_option == "Year to Date":
-        # Last 365 days
         date_range = (year_ago.date(), today.date())
-    else:  # Custom Range
+    # Custom Range
+    else:
         date_range = st.date_input(
             "Custom",
             value=(min_date, today.date()),
             min_value=min_date,
             max_value=today.date()
         )
-    
-    # Other filters
-    channels = ['All'] + sorted(data['channel']['CHANNEL_NAME'].unique().tolist())
+      
+    # Product Category
+    categories = ['All'] + sorted(product['CATEGORY'].unique().tolist())
+    selected_category = st.selectbox('Product Category', categories)
+
+    # Sales Channel
+    channels = ['All'] + sorted(channel['CHANNEL_NAME'].unique().tolist())
     selected_channel = st.selectbox('Sales Channel', channels)
     
-    categories = ['All'] + sorted(data['product']['CATEGORY'].unique().tolist())
-    selected_category = st.selectbox('Product Category', categories)
-    
-    payment_methods = ['All'] + sorted(data['order_fact']['PAYMENT_METHOD'].unique().tolist())
+    # Payment Method
+    payment_methods = ['All'] + sorted(order_fact['PAYMENT_METHOD'].unique().tolist())
     selected_payment_method = st.selectbox('Payment Method', payment_methods)
     
-    order_statuses = ['All'] + sorted(data['order_fact']['ORDER_STATUS'].unique().tolist())
+    # Order Status
+    order_statuses = ['All'] + sorted(order_fact['ORDER_STATUS'].unique().tolist())
     selected_order_status = st.selectbox('Order Status', order_statuses)
-    
-
-filtered_data = {
-        'order_fact': data['order_fact'].copy(),
-        'order_line': data['order_line'].copy(),
-        'customer': data['customer'].copy(),
-        'product': data['product'].copy(),
-        'digital_event': data['digital_event'].copy(),
-        'page_performance': data['page_performance'].copy(),
-        'campaign': data['campaign'].copy(),
-        'inventory': data['inventory'].copy(),
-        'facility': data['facility'].copy(),
-        'person': data['person'].copy(),
-        'company': data['company'].copy(),
-        'order_campaign_attribution': data['order_campaign_attribution'].copy()
-    }
-    
+        
 # Sort dates to ensure start_date is before end_date
 sorted_dates = sorted(date_range)
 start_date = pd.Timestamp(sorted_dates[0])
 end_date = pd.Timestamp(sorted_dates[1])
 
 # Filter orders by date range (using vectorized operations)
-date_mask = (filtered_data['order_fact']['ORDER_DATE'] >= start_date) & (filtered_data['order_fact']['ORDER_DATE'] <= end_date)
-filtered_data['order_fact'] = filtered_data['order_fact'][date_mask]
+order_fact['ORDER_DATE'] = pd.to_datetime(order_fact['ORDER_DATE'])
+date_mask = (order_fact['ORDER_DATE'] >= start_date) & (order_fact['ORDER_DATE'] <= end_date)
+order_fact = order_fact[date_mask]
+
+# Convert sales plan dates to datetime
+sales_plan['PLAN_START_DATE'] = pd.to_datetime(sales_plan['PLAN_START_DATE'])
+sales_plan['PLAN_END_DATE'] = pd.to_datetime(sales_plan['PLAN_END_DATE'])
+
+sales_plan = sales_plan[
+    ((sales_plan['PLAN_START_DATE'] <= end_date) & 
+        (sales_plan['PLAN_END_DATE'] >= start_date))
+]
 
 # Filter by channel
 if selected_channel != 'All':
-    channel_ids = data['channel'][data['channel']['CHANNEL_NAME'] == selected_channel]['CHANNEL_ID'].values
-    filtered_data['order_fact'] = filtered_data['order_fact'][filtered_data['order_fact']['CHANNEL_ID'].isin(channel_ids)]
+    channel_ids = channel[channel['CHANNEL_NAME'] == selected_channel]['CHANNEL_ID'].values
+    order_fact = order_fact[order_fact['CHANNEL_ID'].isin(channel_ids)]
 
 # Filter by payment method
 if selected_payment_method != 'All':
-    filtered_data['order_fact'] = filtered_data['order_fact'][filtered_data['order_fact']['PAYMENT_METHOD'] == selected_payment_method]
+    order_fact = order_fact[order_fact['PAYMENT_METHOD'] == selected_payment_method]
 
 # Filter by order status
 if selected_order_status != 'All':
-    filtered_data['order_fact'] = filtered_data['order_fact'][filtered_data['order_fact']['ORDER_STATUS'] == selected_order_status]
+    order_fact = order_fact[order_fact['ORDER_STATUS'] == selected_order_status]
 
 # Get relevant order IDs (once)
-order_ids = filtered_data['order_fact']['ORDER_ID'].values
+order_ids = order_fact['ORDER_ID'].values
 
 # Filter order lines using the order IDs
-filtered_data['order_line'] = filtered_data['order_line'][filtered_data['order_line']['ORDER_ID'].isin(order_ids)]
+order_line = order_line[order_line['ORDER_ID'].isin(order_ids)]
 
 # Filter by product category
 if selected_category != 'All':
     # Get product IDs for the selected category
-    category_product_ids = filtered_data['product'][filtered_data['product']['CATEGORY'] == selected_category]['PRODUCT_ID'].values
+    category_product_ids = product[product['CATEGORY'] == selected_category]['PRODUCT_ID'].values
     
     # Filter order lines by these product IDs
-    filtered_data['order_line'] = filtered_data['order_line'][filtered_data['order_line']['PRODUCT_ID'].isin(category_product_ids)]
+    order_line = order_line[order_line['PRODUCT_ID'].isin(category_product_ids)]
     
     # Filter products
-    filtered_data['product'] = filtered_data['product'][filtered_data['product']['CATEGORY'] == selected_category]
+    product = product[product['CATEGORY'] == selected_category]
     
     # Filter inventory
-    filtered_data['inventory'] = filtered_data['inventory'][filtered_data['inventory']['PRODUCT_ID'].isin(category_product_ids)]
-
+    inventory = inventory[inventory['PRODUCT_ID'].isin(category_product_ids)]
 # Get relevant customer IDs
-customer_ids = filtered_data['order_fact']['CUSTOMER_ID'].unique()
+customer_ids = order_fact['CUSTOMER_ID'].unique()
 
 # Filter customer data
-filtered_data['customer'] = filtered_data['customer'][filtered_data['customer']['CUSTOMER_ID'].isin(customer_ids)]
+customer = customer[customer['CUSTOMER_ID'].isin(customer_ids)]
 
 # Filter digital events by date
-digital_date_mask = (filtered_data['digital_event']['EVENT_DATE'] >= start_date) & (filtered_data['digital_event']['EVENT_DATE'] <= end_date)
-filtered_data['digital_event'] = filtered_data['digital_event'][digital_date_mask]
+digital_event['EVENT_DATE'] = pd.to_datetime(digital_event['EVENT_DATE'])
+digital_date_mask = (digital_event['EVENT_DATE'] >= start_date) & (digital_event['EVENT_DATE'] <= end_date)
+digital_event = digital_event[digital_date_mask]
 
 # Filter page performance by date
-page_date_mask = (filtered_data['page_performance']['DATE'] >= start_date) & (filtered_data['page_performance']['DATE'] <= end_date)
-filtered_data['page_performance'] = filtered_data['page_performance'][page_date_mask]
+page_performance['DATE'] = pd.to_datetime(page_performance['DATE'])
+page_date_mask = (page_performance['DATE'] >= start_date) & (page_performance['DATE'] <= end_date)
+page_performance = page_performance[page_date_mask]
 
 # Filter campaigns that overlap with the selected date range
-campaign_mask = (filtered_data['campaign']['START_DATE'] <= end_date) & (filtered_data['campaign']['END_DATE'] >= start_date)
-filtered_data['campaign'] = filtered_data['campaign'][campaign_mask]
+campaign['START_DATE'] = pd.to_datetime(campaign['START_DATE'])
+campaign['END_DATE'] = pd.to_datetime(campaign['END_DATE'])
+campaign_mask = (campaign['START_DATE'] <= end_date) & (campaign['END_DATE'] >= start_date)
+campaign = campaign[campaign_mask]
 
 
 # Helper function to create metric containers
@@ -337,104 +262,119 @@ def create_metric_container(title, value, color=PRIMARY_COLOR):
     return f"""
     <div class="metric-container">
         <div class="metric-title">{title}</div>
-        <div class="metric-value" style="color: {color}">{value}</div>
+        <div class="metric-value" style="color: {color};">{value}</div>
     </div>
     """
 
 # Create tabs
-tab_names = ["Sales Overview", "Sales vs Plan", "Product Analysis", "Customer Analysis", "Digital Analysis", "Inventory Analysis", "Campaign Analysis"]
+tab_names = ["Overview", "Sales Analysis", "Product Analysis", "Customer Analysis", "Digital Analysis", "Inventory Analysis", "Campaign Analysis"]
 tabs = st.tabs(tab_names)
 
-# Track the active tab in session state
-if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = 0
+
 
 # Overview tab
 with tabs[0]:
+    st.markdown(
+    """
+    <div style="display: flex; justify-content: flex-start; align-items: center; margin-bottom: 20px; margin-top: 20px;">
+        <img src="https://assets-global.website-files.com/5e21dc6f4c5acf29c35bb32c/5e21e66410e34945f7f25add_Keboola_logo.svg" alt="Keboola Logo" style="height: 40px;">
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+    st.markdown("""
+    Ecommerce Starter is a **demo project** featuring a fictional eCommerce company designed to showcase how businesses can effortlessly leverage the Keboola platform, including Streamlit dashboards and AI integrations. Discover unified insights into business performance and unlock a path to advanced capabilities such as dynamic pricing, demand forecasting, personalization, and more—all enabled by a single data platform.
+    """)
+with tabs[1]:
     # Calculate key metrics
-    order_fact = filtered_data['order_fact']
-    customer = filtered_data['customer']
-    
     total_revenue = order_fact['TOTAL_AMOUNT'].sum()
     total_orders = len(order_fact)
+    total_customers = len(customer)
     avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
     
     # Create key metrics
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.markdown(create_metric_container("Total Customers", f"{len(customer):,.0f}"), unsafe_allow_html=True)
+        st.markdown(create_metric_container("Total Customers", f"{total_customers:,.0f}"), unsafe_allow_html=True)
     with col2:
-        st.markdown(create_metric_container("Total Orders", f"{len(order_fact):,.0f}"), unsafe_allow_html=True)
+        st.markdown(create_metric_container("Total Orders", f"{total_orders:,.0f}"), unsafe_allow_html=True)
     with col3:
         st.markdown(create_metric_container("Total Revenue", f"${total_revenue:,.0f}"), unsafe_allow_html=True)
     with col4:
         st.markdown(create_metric_container("Avg Order Value", f"${avg_order_value:,.2f}"), unsafe_allow_html=True)
     
-    # Create time series with daily orders (using efficient groupby)
+    # Create time series with daily orders
     daily_orders = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).size().reset_index(name='NEW_ORDERS')
-    
-    # Plot daily orders
-    fig1 = go.Figure()
-    
-    fig1.add_trace(go.Scatter(
-        x=daily_orders['ORDER_DATE'],
-        y=daily_orders['NEW_ORDERS'],
-        name='Daily Orders',
-        mode='lines+markers',
-        marker=dict(color='#90CAF9', size=8),
-        line=dict(color='#90CAF9', width=2),
-        showlegend=False
-    ))
-    
-    fig1.update_layout(
-        title='Daily Order Count',
-        xaxis_title='Date',
-        yaxis_title='Number of Orders',
-        hovermode='x unified'
-    )
-    st.plotly_chart(fig1, use_container_width=True)
-    
-    # Order status distribution
-    # Calculate order status counts (using value_counts for efficiency)
-    order_status_counts = order_fact['ORDER_STATUS'].value_counts().reset_index()
-    order_status_counts.columns = ['ORDER_STATUS', 'COUNT']
 
-    # Create bar chart
-    fig2 = px.bar(
-        order_status_counts,
-        x='ORDER_STATUS', 
-        y='COUNT',
-        title='Order Status Distribution',
-        color='ORDER_STATUS',
-        color_discrete_map=STATUS_COLORS,
+    # Plot daily orders
+    fig1 = px.scatter(
+        daily_orders,
+        x='ORDER_DATE',
+        y='NEW_ORDERS',
+        title='Daily Order Count',
         labels={
-            'ORDER_STATUS': 'Order Status',
-            'COUNT': 'Number of Orders'
+            'ORDER_DATE': 'Date',
+            'NEW_ORDERS': 'Number of Orders'
         }
     )
 
-    # Customize appearance
-    fig2.update_traces(
-        texttemplate='%{y}',
-        textposition='outside'
-    )
-    
-    fig2.update_layout(
-        xaxis_title='Order Status',
-        yaxis_title='Number of Orders',
+    fig1.update_traces(
+        mode='lines+markers',
+        marker=dict(color='#1e6996', size=8),
+        line=dict(color='#1e6996', width=2),
         showlegend=False,
-        margin=dict(t=50)
+        hovertemplate='Date: %{x|%Y-%m-%d}<br>Number of Orders: %{y}<extra></extra>'
     )
 
-    # Display chart
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig1, use_container_width=True)
+    # Group orders by date and status
+    status_time = order_fact.groupby([pd.Grouper(key='ORDER_DATE', freq='D'), 'ORDER_STATUS']).size().reset_index(name='COUNT')
+    # Create stacked bar chart for status over time (alternative view)
+    fig_status_stacked = px.bar(
+        status_time,
+        x='ORDER_DATE',
+        y='COUNT',
+        color='ORDER_STATUS',
+        title='Order Status Over Time',
+        color_discrete_map=STATUS_COLORS,
+        labels={
+            'ORDER_DATE': 'Date',
+            'COUNT': 'Number of Orders',
+            'ORDER_STATUS': 'Order Status'
+        },
+        barmode='stack'  # Stack bars by date
+    )
     
-    # Revenue by order type and time trend (using efficient groupby)
+    # Customize appearance
+    fig_status_stacked.update_layout(
+        xaxis_title='Date',
+        yaxis_title='Number of Orders',
+        hovermode='x unified',
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.2,
+            xanchor="center",
+            x=0.5,
+            traceorder='reversed'
+        )
+    )
+
+    # Customize hover template to show date once at top
+    fig_status_stacked.update_traces(
+        hovertemplate=
+        "Order Status: %{data.name}<br>" +
+        "Number of Orders: %{y:,}<extra></extra>"
+    )
+    
+    # Display chart
+    st.plotly_chart(fig_status_stacked, use_container_width=True)
+
+    # Revenue by order type and time trend
     type_revenue_time = order_fact.groupby(['ORDER_TYPE', pd.Grouper(key='ORDER_DATE', freq='D')])['TOTAL_AMOUNT'].sum().reset_index()
     
     # Create an area chart for revenue trends
-    # Calculate revenue by order type
     pivot_revenue = type_revenue_time.pivot_table(
         index='ORDER_DATE', 
         columns='ORDER_TYPE', 
@@ -442,7 +382,6 @@ with tabs[0]:
         aggfunc='sum'
     ).fillna(0).reset_index()
     
-    # Melt the pivot table for plotting
     melted_revenue = pd.melt(
         pivot_revenue, 
         id_vars=['ORDER_DATE'], 
@@ -455,25 +394,26 @@ with tabs[0]:
         x='ORDER_DATE',
         y='TOTAL_AMOUNT',
         color='ORDER_TYPE',
-        title='Daily Revenue Trends by Order Type',
-        color_discrete_sequence=ACCENT_PALETTE,
+        title='Revenue by Order Type',
+        color_discrete_sequence=px.colors.qualitative.Prism,
         labels={
             'ORDER_DATE': 'Date',
-            'TOTAL_AMOUNT': 'Revenue ($)',
+            'TOTAL_AMOUNT': 'Revenue',
             'ORDER_TYPE': 'Order Type'
         }
     )
     
     fig3b.update_layout(
         xaxis_title='',
-        yaxis_title='Revenue ($)',
+        yaxis_title='Revenue',
         hovermode='x unified',
         legend=dict(
             orientation="h",
             yanchor="top",
             y=-0.2,
             xanchor="center",
-            x=0.5
+            x=0.5,
+            traceorder='reversed'
         ),
         hoverlabel=dict(
             namelength=-1  # Show full label names
@@ -488,37 +428,13 @@ with tabs[0]:
     
     st.plotly_chart(fig3b, use_container_width=True)
     
-    # Update active tab
-    st.session_state.active_tab = 0
-
-# Sales Analysis tab
-with tabs[1]:
-    # Check if this tab is active
-    if st.session_state.active_tab != 1:
-        st.session_state.active_tab = 1
-    
     # Create sales dashboard
     metrics = st.container()
 
-    # Get filtered data
-    order_fact = filtered_data['order_fact']
-    sales_plan = data['sales_plan']  # Use original sales plan data
-    
     # Calculate daily actual sales (using efficient groupby)
     daily_actual_sales = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).agg({
         'TOTAL_AMOUNT': 'sum'
     }).reset_index()
-
-    # Get date range for filtering
-    sorted_dates = sorted(date_range)
-    start_date = pd.Timestamp(sorted_dates[0])
-    end_date = pd.Timestamp(sorted_dates[1])
-    
-    # Filter sales plan data by the selected date range
-    filtered_sales_plan = sales_plan[
-        ((sales_plan['PLAN_START_DATE'] <= end_date) & 
-         (sales_plan['PLAN_END_DATE'] >= start_date))
-    ]
 
     # Calculate daily planned sales more efficiently
     # Create a date range for the filtered period
@@ -526,7 +442,7 @@ with tabs[1]:
     daily_plan = pd.DataFrame({'ORDER_DATE': date_range_days, 'PLANNED_AMOUNT': 0.0})
     
     # For each plan, distribute the target revenue across its days
-    for _, row in filtered_sales_plan.iterrows():
+    for _, row in sales_plan.iterrows():
         plan_start = max(row['PLAN_START_DATE'], start_date)
         plan_end = min(row['PLAN_END_DATE'], end_date)
         plan_days = (plan_end - plan_start).days + 1
@@ -628,8 +544,7 @@ with tabs[1]:
     with col1:
         st.markdown(create_metric_container(
             "Total Actual Sales",
-            f"${total_actual:,.2f}",
-            PRIMARY_COLOR
+            f"${total_actual:,.2f}"
         ), unsafe_allow_html=True)
 
     with col2:
@@ -649,37 +564,38 @@ with tabs[1]:
 
 # Product Analysis tab
 with tabs[2]:
-    # Check if this tab is active
-    if st.session_state.active_tab != 2:
-        st.session_state.active_tab = 2
-        
-    st.markdown("## Product Analysis")
-
-    # Get filtered data
-    product = filtered_data['product']
-    order_line = filtered_data['order_line']
-    order_fact = filtered_data['order_fact']
-
-    # Merge relevant tables efficiently
+    # Merge relevant tables efficiently for product analysis
     product_sales = (order_line.merge(order_fact[['ORDER_ID', 'ORDER_DATE', 'ORDER_STATUS']], on='ORDER_ID')
-                    .merge(product[['PRODUCT_ID', 'NAME', 'CATEGORY', 'BRAND', 'PRICE']], on='PRODUCT_ID'))
+                    .merge(product[['PRODUCT_ID', 'NAME', 'CATEGORY', 'BRAND', 'PRICE']], on='PRODUCT_ID')
+                    .merge(product_variant[['VARIANT_ID', 'PRODUCT_ID', 'VARIANT_NAME', 'INVENTORY_QTY']], on=['PRODUCT_ID', 'VARIANT_ID'], how='left'))
     
-    # Calculate product metrics
-    product_sales['REVENUE'] = product_sales['QUANTITY'] * product_sales['UNIT_PRICE']
+    # Calculate product metrics - correctly account for discounts
+    product_sales['REVENUE'] = product_sales['LINE_TOTAL']  # LINE_TOTAL already includes discounts
+    product_sales['PROFIT_MARGIN'] = ((product_sales['LINE_TOTAL'] - (product_sales['UNIT_PRICE'] * 0.6 * product_sales['QUANTITY'])) / product_sales['LINE_TOTAL']) * 100
+    
+    # Convert ORDER_DATE to datetime
+    product_sales['ORDER_DATE'] = pd.to_datetime(product_sales['ORDER_DATE'])
+    
+    # Extract year and month for time-based analysis
+    product_sales['YEAR'] = product_sales['ORDER_DATE'].dt.year
+    product_sales['MONTH'] = product_sales['ORDER_DATE'].dt.month
+    product_sales['MONTH_NAME'] = product_sales['ORDER_DATE'].dt.strftime('%b')
+    product_sales['YEAR_MONTH'] = product_sales['ORDER_DATE'].dt.strftime('%Y-%m')
     
     # Key metrics
     total_products = len(product)
     active_products = len(product[product['ACTIVE'] == True])
     total_categories = product['CATEGORY'].nunique()
     avg_price = product['PRICE'].mean()
+    total_variants = len(product_variant)
+    avg_inventory = product_variant['INVENTORY_QTY'].mean()
     
-    # Display key metrics
+    # Display key metrics in two rows
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(create_metric_container(
             "Total Products",
-            f"{total_products:,}",
-            PRIMARY_COLOR
+            f"{total_products:,}"
         ), unsafe_allow_html=True)
     with col2:
         st.markdown(create_metric_container(
@@ -695,99 +611,26 @@ with tabs[2]:
         ), unsafe_allow_html=True)
     with col4:
         st.markdown(create_metric_container(
-            "Avg Price",
-            f"${avg_price:.2f}",
-            PRIMARY_COLOR
+            "Avg Product Price",
+            f"${avg_price:.2f}"
         ), unsafe_allow_html=True)
-    
-    # Create two columns for charts
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Category Distribution - use groupby for efficiency
-        category_dist = product.groupby('CATEGORY').agg({
-            'PRODUCT_ID': 'count',
-            'ACTIVE': lambda x: (x == True).sum()
-        }).reset_index()
-        category_dist.columns = ['CATEGORY', 'TOTAL_PRODUCTS', 'ACTIVE_PRODUCTS']
         
-        fig_category = go.Figure()
-        fig_category.add_trace(go.Bar(
-            name='Active',
-            x=category_dist['CATEGORY'],
-            y=category_dist['ACTIVE_PRODUCTS'],
-            marker_color=SUCCESS_COLOR
-        ))
-        fig_category.add_trace(go.Bar(
-            name='Inactive',
-            x=category_dist['CATEGORY'],
-            y=category_dist['TOTAL_PRODUCTS'] - category_dist['ACTIVE_PRODUCTS'],
-            marker_color=DANGER_COLOR
-        ))
-        
-        fig_category.update_layout(
-            title='Products by Category',
-            barmode='stack',
-            xaxis_title='Category',
-            yaxis_title='Number of Products',
-            legend_title='Status'
-        )
-        st.plotly_chart(fig_category, use_container_width=True)
     
-    with col2:
-        # Price Distribution by Category
-        fig_price = px.box(
-            product,
-            x='CATEGORY',
-            y='PRICE',
-            title='Price Distribution by Category',
-            color='CATEGORY',
-            color_discrete_sequence=BASE_PALETTE
-        )
-        fig_price.update_layout(
-            xaxis_title='Category',
-            yaxis_title='Price ($)',
-            showlegend=False
-        )
-        st.plotly_chart(fig_price, use_container_width=True)
-    
-    # Top Products Analysis
-    # Prepare data for sunburst chart by calculating sales - use groupby for efficiency
-    product_sales_hierarchy = product_sales.groupby(['CATEGORY', 'BRAND', 'NAME'])['REVENUE'].sum().reset_index()
-    
-    # Create sunburst chart
-    fig_sunburst = px.sunburst(
-        product_sales_hierarchy,
-        path=['CATEGORY', 'BRAND', 'NAME'], 
-        values='REVENUE',
-        title='Product Sales Distribution',
-        #color_discrete_sequence=BASE_PALETTE
-    )
-    
-    fig_sunburst.update_layout(
-        width=800,
-        height=800
-    )
-    
-    fig_sunburst.update_traces(
-        textinfo='label+value+percent parent',
-        texttemplate='%{label}<br>$%{value:,.2f}<br>%{percentParent:.1%}'
-    )
-    
-    st.plotly_chart(fig_sunburst, use_container_width=True)
-    
-    st.markdown("### Top Products Performance")
 
-    # Calculate product performance metrics - use groupby for efficiency
-    product_performance = product_sales.groupby(['PRODUCT_ID', 'NAME', 'CATEGORY', 'PRICE']).agg({
+    # Calculate product performance metrics
+    product_performance = product_sales.groupby(['PRODUCT_ID', 'NAME', 'CATEGORY', 'BRAND', 'PRICE']).agg({
         'QUANTITY': 'sum',
         'REVENUE': 'sum',
-        'ORDER_ID': 'nunique'
+        'ORDER_ID': 'nunique',
+        'PROFIT_MARGIN': 'mean'
     }).reset_index()
     
     product_performance['AVG_ORDER_VALUE'] = product_performance['REVENUE'] / product_performance['ORDER_ID']
+    product_performance = product_performance.sort_values('REVENUE', ascending=False)
     
-    # Sort by revenue and get top 10
+    # Top and Bottom Products
+        
+    # Top products by Revenue
     top_products = product_performance.nlargest(10, 'REVENUE')
     
     fig_top = px.bar(
@@ -797,24 +640,110 @@ with tabs[2]:
         color='CATEGORY',
         title='Top 10 Products by Revenue',
         orientation='h',
-        color_discrete_sequence=ACCENT_PALETTE,
+        color_discrete_sequence=px.colors.qualitative.Prism,
         text='REVENUE'
     )
     
     fig_top.update_traces(
         texttemplate='$%{text:,.0f}',
-        textposition='outside'
+        textposition='inside'
     )
     
     fig_top.update_layout(
         yaxis={'categoryorder': 'total ascending'},
         xaxis_title='Revenue ($)',
         yaxis_title='',
-            showlegend=True,
+        showlegend=True,
         legend_title='Category'
     )
     
     st.plotly_chart(fig_top, use_container_width=True)
+
+    # Top products by Profit Margin
+    top_margin_products = product_performance.nlargest(10, 'PROFIT_MARGIN')
+    
+    fig_margin = px.bar(
+        top_margin_products,
+        x='PROFIT_MARGIN',
+        y='NAME',
+        color='CATEGORY',
+        title='Top 10 Products by Profit Margin (%)',
+        orientation='h',
+        color_discrete_sequence=px.colors.qualitative.Prism,
+        text='PROFIT_MARGIN'
+    )
+    
+    fig_margin.update_traces(
+        texttemplate='%{text:.0f}%',
+        textposition='outside'
+    )
+    
+    fig_margin.update_layout(
+        yaxis={'categoryorder': 'total ascending'},
+        xaxis_title='Profit Margin (%)',
+        yaxis_title='',
+        showlegend=True,
+        legend_title='Category'
+    )
+    
+    st.plotly_chart(fig_margin, use_container_width=True)
+
+    # Brand Performance
+    brand_performance = product_sales.groupby('BRAND').agg({
+        'REVENUE': 'sum',
+        'QUANTITY': 'sum',
+        'PRODUCT_ID': 'nunique'
+    }).reset_index().sort_values('REVENUE', ascending=False).head(10)
+    
+    fig_brand = px.bar(
+        brand_performance,
+        x='BRAND',
+        y='REVENUE',
+        title='Top 10 Brands by Revenue',
+        color='BRAND',
+        text='REVENUE',
+        color_discrete_sequence=px.colors.qualitative.Prism
+    )
+    
+    fig_brand.update_traces(
+        texttemplate='$%{text:,.0f}',
+        textposition='outside'
+    )
+    
+    fig_brand.update_layout(
+        xaxis_title='Brand',
+        yaxis_title='Revenue ($)',
+        xaxis={'categoryorder': 'total descending'},
+        showlegend=False
+    )
+    
+    st.plotly_chart(fig_brand, use_container_width=True)
+
+    # Product Sales Hierarchy (Sunburst)
+    st.markdown("### Product Sales Hierarchy")
+    
+    # Prepare data for sunburst chart
+    product_sales_hierarchy = product_sales.groupby(['CATEGORY', 'BRAND', 'NAME'])['REVENUE'].sum().reset_index()
+    
+    # Create sunburst chart
+    fig_sunburst = px.sunburst(
+        product_sales_hierarchy,
+        path=['CATEGORY', 'BRAND', 'NAME'], 
+        values='REVENUE',
+        title='Product Revenue Distribution',
+        color_discrete_sequence=px.colors.qualitative.Prism
+    )
+    
+    fig_sunburst.update_layout(
+        height=600
+    )
+    
+    fig_sunburst.update_traces(
+        textinfo='label+value+percent parent',
+        texttemplate='%{label}<br>$%{value:,.2f}<br>%{percentParent:.1%}'
+    )
+    
+    st.plotly_chart(fig_sunburst, use_container_width=True)
     
     # Product Performance Table
     st.markdown("### Detailed Product Performance")
@@ -824,54 +753,78 @@ with tabs[2]:
     product_table['REVENUE'] = product_table['REVENUE'].apply(lambda x: f"${x:,.2f}")
     product_table['AVG_ORDER_VALUE'] = product_table['AVG_ORDER_VALUE'].apply(lambda x: f"${x:,.2f}")
     product_table['PRICE'] = product_table['PRICE'].apply(lambda x: f"${x:,.2f}")
+    product_table['PROFIT_MARGIN'] = product_table['PROFIT_MARGIN'].apply(lambda x: f"{x:.1f}%")
     
     st.dataframe(
-        product_table.sort_values('REVENUE', ascending=False),
+        product_table,
         column_config={
             'NAME': 'Product Name',
             'CATEGORY': 'Category',
+            'BRAND': 'Brand',
             'PRICE': 'List Price',
             'QUANTITY': 'Units Sold',
             'REVENUE': 'Total Revenue',
             'ORDER_ID': 'Number of Orders',
-            'AVG_ORDER_VALUE': 'Avg Order Value'
+            'AVG_ORDER_VALUE': 'Avg Order Value',
+            'PROFIT_MARGIN': 'Profit Margin'
         },
         hide_index=True,
         use_container_width=True
     )
     
-    # Brand Analysis
-    st.markdown("### Brand Performance")
+    # PRICING TAB
+
+    st.markdown("### Product Pricing Analysis")
     
-    # Use groupby for efficiency
-    brand_performance = product_sales.groupby('BRAND').agg({
-        'REVENUE': 'sum',
-        'QUANTITY': 'sum',
-        'ORDER_ID': 'nunique',
-        'PRODUCT_ID': 'nunique'
-    }).reset_index()
+    col1, col2 = st.columns(2)
     
-    brand_performance = brand_performance.sort_values('REVENUE', ascending=False)
+    with col1:
+        # Price Distribution by Category
+        fig_price = px.box(
+            product,
+            x='CATEGORY',
+            y='PRICE',
+            title='Price Distribution by Category',
+            color='CATEGORY',
+            color_discrete_sequence=px.colors.qualitative.Prism
+        )
+        
+        fig_price.update_layout(
+            xaxis_title='Category',
+            yaxis_title='Price ($)',
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig_price, use_container_width=True)
     
-    # Brand Revenue Share
-    fig_brand = px.pie(
-        brand_performance,
-        values='REVENUE',
-        names='BRAND',
-        title='Revenue Share by Brand',
-        color_discrete_sequence=ACCENT_PALETTE
-    )
-    fig_brand.update_traces(textposition='inside', textinfo='percent')
-    st.plotly_chart(fig_brand, use_container_width=True)
+    with col2:
+        # Price vs Revenue Scatterplot
+        price_revenue = product_performance.head(100)  # Top 100 products
+        
+        fig_scatter = px.scatter(
+            price_revenue,
+            x='PRICE',
+            y='REVENUE',
+            size='QUANTITY',
+            color='CATEGORY',
+            hover_name='NAME',
+            title='Price vs. Revenue (Top 100 Products)',
+            color_discrete_sequence=px.colors.qualitative.Prism
+        )
+        
+        fig_scatter.update_layout(
+            xaxis_title='Price ($)',
+            yaxis_title='Revenue ($)',
+            showlegend=True
+        )
+        
+        st.plotly_chart(fig_scatter, use_container_width=True)
 
 # Customer Analysis tab
 with tabs[3]:
-    st.markdown("## Customer Analysis")
 
-    # Merge customer data with orders
     customer_orders = order_fact.merge(customer, on='CUSTOMER_ID', how='left')
-    
-    # Calculate customer metrics
+   # Calculate customer metrics
     customer_metrics = customer_orders.groupby('CUSTOMER_ID').agg({
         'ORDER_ID': 'count',
         'TOTAL_AMOUNT': 'sum',
@@ -955,14 +908,20 @@ with tabs[3]:
     
     customer_metrics['SEGMENT'] = customer_metrics['RFM_SCORE'].apply(get_segment)
     
+    # Calculate customer type distribution
+    type_dist = customer_metrics.merge(
+        customer[['CUSTOMER_ID', 'CUSTOMER_TYPE']], 
+        on='CUSTOMER_ID'
+    )['CUSTOMER_TYPE'].value_counts().reset_index()
+    type_dist.columns = ['Type', 'Count']
+    
     # Display key metrics
-    col1, col2, col3, col4 = st.columns([0.24, 0.24, 0.28, 0.24])
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown(create_metric_container(
             "Total Customers",
-            f"{len(customer_metrics):,}",
-            PRIMARY_COLOR
+            f"{len(customer_metrics):,}"
         ), unsafe_allow_html=True)
     
     with col2:
@@ -978,48 +937,58 @@ with tabs[3]:
             f"{customer_metrics['ORDER_COUNT'].mean():.1f}",
             SECONDARY_COLOR
         ), unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown(create_metric_container(
-            "Avg Order Value",
-            f"${customer_metrics['AVG_ORDER_VALUE'].mean():,.2f}",
-            PRIMARY_COLOR
-        ), unsafe_allow_html=True)
-    
+        
+  #  with col4:
+   #     st.markdown(create_metric_container(
+    #        "Most Common Type",
+     #       f"{type_dist.iloc[0]['Type']}",
+      #      PRIMARY_COLOR
+       # ), unsafe_allow_html=True)
+        
     # Customer Segmentation Analysis
-    st.markdown("### Customer Segmentation")
-    
     col1, col2 = st.columns(2)
-    
     with col1:
         # Segment Distribution
         segment_dist = customer_metrics['SEGMENT'].value_counts().reset_index()
         segment_dist.columns = ['Segment', 'Count']
         segment_dist['Percentage'] = (segment_dist['Count'] / len(customer_metrics) * 100).round(1)
         
+        # Define color mapping for segments
+        segment_colors = {
+            'Champions': '#2E7D32',  # Dark green
+            'Loyal Customers': '#73af48',  # Green
+            'Potential Loyalists': '#edad07',  # Amber
+            'At Risk': '#e27c03',  # Orange
+            'Lost Customers': '#cc503e'  # Red
+        }
+        
         fig_segment = px.bar(
-        segment_dist,
+            segment_dist,
             x='Segment',
             y='Count',
-            text='Percentage',
+            text=segment_dist['Percentage'].apply(lambda x: f'{x}%'),
             title='Customer Segment Distribution',
             color='Segment',
-            color_discrete_sequence=BASE_PALETTE
+            color_discrete_map=segment_colors,
+            hover_data={
+                'Count': True,
+                'Percentage': ':.1f',
+                'Segment': False
+            },
+            custom_data=['Count', 'Percentage']
         )
-        
-        fig_segment.update_traces(
-        texttemplate='%{text:.1f}%',
-        textposition='outside'
-    )
-    
+            
         fig_segment.update_layout(
             xaxis_title='',
             yaxis_title='Number of Customers',
             showlegend=False
         )
+
+        fig_segment.update_traces(
+            hovertemplate='Count: %{customdata[0]}<br>Percentage: %{customdata[1]:.1f}%<extra></extra>'
+        )
         
         st.plotly_chart(fig_segment, use_container_width=True)
-    
     with col2:
         # Average metrics by segment
         segment_metrics = customer_metrics.groupby('SEGMENT').agg({
@@ -1035,18 +1004,19 @@ with tabs[3]:
             name='Avg Total Spent',
             x=segment_metrics['SEGMENT'],
             y=segment_metrics['TOTAL_SPENT'],
-            marker_color=PRIMARY_COLOR
+            marker_color='#1f6796',  # Darker blue
+            hovertemplate='$%{y:,.2f}<extra></extra>'
         ))
         
         fig_metrics.add_trace(go.Bar(
             name='Avg Order Value',
             x=segment_metrics['SEGMENT'],
             y=segment_metrics['AVG_ORDER_VALUE'],
-            marker_color=SECONDARY_COLOR
+            marker_color='#38a5a5',  # Lighter blue
+            hovertemplate='$%{y:,.2f}<extra></extra>'
         ))
-        
         fig_metrics.update_layout(
-            title='Average Customer Metrics by Segment',
+            title='Average Metrics by Segment',
             barmode='group',
             yaxis_title='Amount ($)',
             showlegend=True,
@@ -1060,33 +1030,33 @@ with tabs[3]:
         )
         
         st.plotly_chart(fig_metrics, use_container_width=True)
-    
-
     # Order Frequency Distribution
     fig_frequency = px.histogram(
         customer_metrics,
         x='ORDER_COUNT',
         title='Order Frequency Distribution',
-        color_discrete_sequence=[PRIMARY_COLOR],
+        color_discrete_sequence=[px.colors.qualitative.Prism[0]], # Using first Prism color
         labels={'ORDER_COUNT': 'Number of Orders'},
-        text_auto=True  # Add count numbers on bars
+        text_auto='.0f',  # Format numbers without k suffix
+        hover_data=None  # Disable hover
     )
     
     fig_frequency.update_layout(
         xaxis_title='Number of Orders',
         yaxis_title='Number of Customers',
         showlegend=False,
-        bargap=0.1
+        bargap=0.1,
+        margin=dict(t=50),  # Add top margin to prevent text cutoff
+        hovermode=False  # Disable hover mode
     )
     
     fig_frequency.update_traces(
-        textposition='outside'  # Place numbers above bars
+        textposition='outside',  # Place numbers above bars
+        textangle=0,  # Ensure text is horizontal
+        hoverinfo='skip'  # Disable hover info
     )
     
     st.plotly_chart(fig_frequency, use_container_width=True)
-
-    
-    
     # Top Customers Table
     st.markdown("### Top Customers")
     
@@ -1110,89 +1080,66 @@ with tabs[3]:
         hide_index=True,
         use_container_width=True
     )
+
+    # Average metrics by customer type
+    type_metrics = customer_metrics.merge(
+        customer[['CUSTOMER_ID', 'CUSTOMER_TYPE']], 
+        on='CUSTOMER_ID'
+    ).groupby('CUSTOMER_TYPE').agg({
+        'TOTAL_SPENT': 'mean',
+        'ORDER_COUNT': 'mean',
+        'AVG_ORDER_VALUE': 'mean'
+    }).reset_index()
     
-    # Customer Type Analysis
-    if 'CUSTOMER_TYPE' in customer.columns:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Customer Type Distribution
-            type_dist = customer_metrics.merge(
-                customer[['CUSTOMER_ID', 'CUSTOMER_TYPE']], 
-                on='CUSTOMER_ID'
-            )['CUSTOMER_TYPE'].value_counts().reset_index()
-            type_dist.columns = ['Type', 'Count']
-            
-            fig_type = px.pie(
-                type_dist,
-                values='Count',
-                names='Type',
-                title='Customer Type Distribution',
-                color_discrete_map=BASE_PALETTE
-            )
-            
-            st.plotly_chart(fig_type, use_container_width=True)
-        
-        with col2:
-            # Average metrics by customer type
-            type_metrics = customer_metrics.merge(
-                customer[['CUSTOMER_ID', 'CUSTOMER_TYPE']], 
-                on='CUSTOMER_ID'
-            ).groupby('CUSTOMER_TYPE').agg({
-                'TOTAL_SPENT': 'mean',
-                'ORDER_COUNT': 'mean',
-                'AVG_ORDER_VALUE': 'mean'
-            }).reset_index()
-            
-            fig_type_metrics = go.Figure()
-            
-            fig_type_metrics.add_trace(go.Bar(
-                name='Avg Total Spent',
-                x=type_metrics['CUSTOMER_TYPE'],
-                y=type_metrics['TOTAL_SPENT'],
-                marker_color=PRIMARY_COLOR
-            ))
-            
-            fig_type_metrics.add_trace(go.Bar(
-                name='Avg Order Value',
-                x=type_metrics['CUSTOMER_TYPE'],
-                y=type_metrics['AVG_ORDER_VALUE'],
-                marker_color=SECONDARY_COLOR
-            ))
-            
-            fig_type_metrics.update_layout(
-                title='Average Metrics by Customer Type',
-                barmode='group',
-                yaxis_title='Amount ($)',
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
-            )
-            
-            st.plotly_chart(fig_type_metrics, use_container_width=True)
+    fig_type_metrics = go.Figure()
+    
+    fig_type_metrics.add_trace(go.Bar(
+        name='Avg Total Spent',
+        x=type_metrics['CUSTOMER_TYPE'],
+        y=type_metrics['TOTAL_SPENT'],
+        marker_color='#1f6796',
+        hovertemplate='$%{y:.2f}<extra></extra>'
+    ))
+    
+    fig_type_metrics.add_trace(go.Bar(
+        name='Avg Order Value',
+        x=type_metrics['CUSTOMER_TYPE'],
+        y=type_metrics['AVG_ORDER_VALUE'],
+        marker_color='#38a5a5',
+        hovertemplate='$%{y:.2f}<extra></extra>'
+    ))
+    
+    fig_type_metrics.update_layout(
+        title='Average Metrics by Customer Type',
+        barmode='group',
+        yaxis_title='Amount ($)',
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    st.plotly_chart(fig_type_metrics, use_container_width=True)
 
 # Digital Analysis tab
 with tabs[4]:
-    st.markdown("## Digital Analysis")
-    
     # Calculate key metrics
-    total_events = len(filtered_data['digital_event'])
-    total_visitors = filtered_data['page_performance']['UNIQUE_VISITORS'].sum()
-    avg_conversion = filtered_data['page_performance']['CONVERSION_RATE'].mean() * 100
-    avg_bounce = filtered_data['page_performance']['BOUNCE_RATE'].mean() * 100
+    total_events = len(digital_event)
+
+    total_visitors = page_performance['UNIQUE_VISITORS'].sum()
+    avg_conversion = page_performance['CONVERSION_RATE'].mean() * 100
+    avg_bounce = page_performance['BOUNCE_RATE'].mean() * 100
     
     # Display key metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown(create_metric_container(
             "Total Events",
-            f"{total_events:,}",
-            PRIMARY_COLOR
+            f"{total_events:,}"
         ), unsafe_allow_html=True)
     with col2:
         st.markdown(create_metric_container(
@@ -1214,13 +1161,16 @@ with tabs[4]:
         ), unsafe_allow_html=True)
     
     # Event Analysis Section
-    st.markdown("### Event Analysis")
     col1, col2 = st.columns(2)
     
     with col1:
         # Event Type Distribution
-        event_counts = filtered_data['digital_event']['EVENT_TYPE'].value_counts().reset_index()
+        event_counts = digital_event['EVENT_TYPE'].value_counts().reset_index()
         event_counts.columns = ['EVENT_TYPE', 'COUNT']
+        
+        # Create color map using Prism colors
+        event_types = event_counts['EVENT_TYPE'].unique()
+        color_map = dict(zip(event_types, px.colors.qualitative.Prism[:len(event_types)]))
         
         fig_events = px.bar(
             event_counts,
@@ -1228,7 +1178,7 @@ with tabs[4]:
             y='COUNT',
             title='Digital Event Distribution',
             color='EVENT_TYPE',
-            color_discrete_map=EVENT_COLORS,
+            color_discrete_map=color_map,
             text='COUNT'
         )
         
@@ -1247,33 +1197,36 @@ with tabs[4]:
     
     with col2:
         # Device Type Distribution
-        device_counts = filtered_data['digital_event']['DEVICE_TYPE'].value_counts().reset_index()
+        device_counts = digital_event['DEVICE_TYPE'].value_counts().reset_index()
         device_counts.columns = ['DEVICE_TYPE', 'COUNT']
         device_counts['PERCENTAGE'] = (device_counts['COUNT'] / device_counts['COUNT'].sum() * 100).round(1)
         
+        # Create color map using Prism colors
+        device_types = device_counts['DEVICE_TYPE'].unique()
+        color_map = dict(zip(device_types, px.colors.qualitative.Prism[:len(device_types)]))
+        
         fig_devices = px.pie(
             device_counts,
-            values='COUNT',
+            values='COUNT', 
             names='DEVICE_TYPE',
             title='Device Type Distribution',
             color='DEVICE_TYPE',
-            color_discrete_map=DEVICE_COLORS,
-            hover_data=['PERCENTAGE']
+            hover_data=['PERCENTAGE'],
+            color_discrete_map=color_map
         )
         
         fig_devices.update_traces(
             textinfo='percent+label',
             textposition='inside'
         )
-        
         st.plotly_chart(fig_devices, use_container_width=True)
     
     # Traffic Analysis Section
     st.markdown("### Traffic Analysis")
     
     # Prepare monthly data
-    filtered_data['page_performance']['DATE'] = pd.to_datetime(filtered_data['page_performance']['DATE'])
-    monthly_traffic = filtered_data['page_performance'].groupby(pd.Grouper(key='DATE', freq='M')).agg({
+    page_performance['DATE'] = pd.to_datetime(page_performance['DATE'])
+    monthly_traffic = page_performance.groupby(pd.Grouper(key='DATE', freq='W')).agg({
         'VIEWS': 'sum',
         'UNIQUE_VISITORS': 'sum',
         'BOUNCE_RATE': 'mean',
@@ -1300,8 +1253,8 @@ with tabs[4]:
     ))
     
     fig_traffic.update_layout(
-        title='Monthly Website Traffic',
-        xaxis_title='Month',
+        title='Weekly Website Traffic',
+        xaxis_title='Week',
         yaxis_title='Count',
         hovermode='x unified',
         legend=dict(
@@ -1336,7 +1289,7 @@ with tabs[4]:
     
     fig_rates.update_layout(
         title='Conversion and Bounce Rate Trends',
-        xaxis_title='Month',
+        xaxis_title='Week',
         yaxis_title='Rate (%)',
         hovermode='x unified',
         legend=dict(
@@ -1349,9 +1302,8 @@ with tabs[4]:
     )
     
     st.plotly_chart(fig_rates, use_container_width=True)
-
     funnel_events = ['PAGE_VIEW', 'PRODUCT_VIEW', 'ADD_TO_CART', 'CHECKOUT_START', 'CHECKOUT_COMPLETE']
-    funnel_counts = filtered_data['digital_event'][filtered_data['digital_event']['EVENT_TYPE'].isin(funnel_events)]['EVENT_TYPE'].value_counts()
+    funnel_counts = digital_event[digital_event['EVENT_TYPE'].isin(funnel_events)]['EVENT_TYPE'].value_counts()
     funnel_data = pd.DataFrame({
         'EVENT_TYPE': funnel_events,
         'COUNT': [funnel_counts.get(event, 0) for event in funnel_events]
@@ -1360,7 +1312,8 @@ with tabs[4]:
     fig_funnel = go.Figure(go.Funnel(
         y=funnel_data['EVENT_TYPE'],
         x=funnel_data['COUNT'],
-        textinfo="value+percent initial"
+        textinfo="value+percent initial",
+        texttemplate="%{value:.2s}<br>(%{percentInitial})"
     ))
     
     fig_funnel.update_layout(
@@ -1372,232 +1325,128 @@ with tabs[4]:
 
 # Inventory Analysis tab
 with tabs[5]:
-    # Check if this tab is active
-    if st.session_state.active_tab != 5:
-        st.session_state.active_tab = 5
-        
-    st.markdown("## Inventory Analysis")
 
-    # Get filtered data
-    inventory = filtered_data['inventory']
-    product = filtered_data['product']
-    facility = filtered_data['facility']
+    # Function to categorize inventory levels
+    def get_inventory_status(qty):
+        if qty <= 5:
+            return "Critical (0-5)"
+        elif qty <= 20:
+            return "Low (6-20)"
+        elif qty <= 50:
+            return "Medium (21-50)"
+        else:
+            return "High (50+)"
     
-    # Check if product_variant is available in the filtered data
-    has_product_variants = 'product_variant' in filtered_data
+    # Add inventory status to product variant data
+    product_variant['INVENTORY_STATUS'] = product_variant['INVENTORY_QTY'].apply(get_inventory_status)
     
-    # Calculate key metrics
-    total_inventory = inventory['QUANTITY'].sum()
-    total_products_in_stock = inventory['PRODUCT_ID'].nunique()
-    avg_quantity_per_product = total_inventory / total_products_in_stock if total_products_in_stock > 0 else 0
-    total_facilities = inventory['FACILITY_ID'].nunique()
-
-    # Display key metrics
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(create_metric_container(
-            "Total Inventory",
-            f"{total_inventory:,}",
-            PRIMARY_COLOR
-        ), unsafe_allow_html=True)
-    with col2:
-        st.markdown(create_metric_container(
-            "Products in Stock",
-            f"{total_products_in_stock:,}",
-            SUCCESS_COLOR
-        ), unsafe_allow_html=True)
-    with col3:
-        st.markdown(create_metric_container(
-            "Avg Quantity/Product",
-            f"{avg_quantity_per_product:.1f}",
-            SECONDARY_COLOR
-        ), unsafe_allow_html=True)
-    with col4:
-        st.markdown(create_metric_container(
-            "Total Facilities",
-            f"{total_facilities:,}",
-            PRIMARY_COLOR
-        ), unsafe_allow_html=True)
-
-    # Merge inventory with product data for analysis
-    # Use the filtered product data based on category selection
-    inventory_analysis = inventory.merge(
-        product[['PRODUCT_ID', 'NAME', 'CATEGORY', 'BRAND']], 
-        on='PRODUCT_ID'
-    ).merge(
-        facility[['FACILITY_ID', 'FACILITY_NAME', 'FACILITY_TYPE']], 
-        on='FACILITY_ID'
-    )
-
-    # Inventory by Category Analysis
-    st.markdown("### Inventory by Category")
-
-        # Category Distribution
-    category_inventory = inventory_analysis.groupby('CATEGORY').agg({
-        'QUANTITY': 'sum',
-        'PRODUCT_ID': 'nunique'
-    }).reset_index()
-
-    # Products per Category
-    fig_products = px.bar(
-        category_inventory,
-        x='CATEGORY',
-        y='PRODUCT_ID',
-        title='Number of Products by Category',
-        color='CATEGORY',
-        #color_discrete_sequence=BASE_PALETTE,
-        labels={'PRODUCT_ID': 'Number of Products'}
-    )
-
-    fig_products.update_layout(
-        showlegend=False,
-        xaxis_title='Category',
-        yaxis_title='Number of Products'
-    )
-
-    st.plotly_chart(fig_products, use_container_width=True)
-    # Inventory Status Analysis
-    st.markdown("### Inventory Status Analysis")
-    def get_inventory_status(quantity):
-        if quantity <= 10:
-            return ("Critical Low", "#FF4B4B")  # Soft red
-        elif quantity <= 50:
-            return ("Low", "#FFA07A")  # Light salmon
-        elif quantity <= 200:
-            return ("Medium", "#FFD700")  # Gold
-        return ("High", "#32CD32")  # Darker lime green
-
-    # Add status and color to inventory analysis
-    inventory_analysis[['STATUS', 'STATUS_COLOR']] = pd.DataFrame(inventory_analysis['QUANTITY'].apply(get_inventory_status).tolist(), index=inventory_analysis.index)
-
-    # Create inventory status visualization
+    # Merge with product data for category information
+    inventory_analysis = product_variant.merge(product[['PRODUCT_ID', 'CATEGORY', 'BRAND', 'NAME']], on='PRODUCT_ID')
+    
     col1, col2 = st.columns(2)
-
+    
     with col1:
-        # Status Distribution
-        status_counts = inventory_analysis.groupby(['STATUS', 'STATUS_COLOR']).size().reset_index(name='COUNT')
+        # Inventory Status Distribution
+        inventory_status_count = inventory_analysis.groupby('INVENTORY_STATUS').size().reset_index(name='COUNT')
+        
+        # Custom order for the status
+        status_order = ["Critical (0-5)", "Low (6-20)", "Medium (21-50)", "High (50+)"]
+        inventory_status_count['INVENTORY_STATUS'] = pd.Categorical(
+            inventory_status_count['INVENTORY_STATUS'], 
+            categories=status_order, 
+            ordered=True
+        )
+        inventory_status_count = inventory_status_count.sort_values('INVENTORY_STATUS')
+        
+        # Define colors for each status
+        status_colors = {
+            "Critical (0-5)": DANGER_COLOR,
+            "Low (6-20)": WARNING_COLOR,
+            "Medium (21-50)": SECONDARY_COLOR,
+            "High (50+)": SUCCESS_COLOR
+        }
+        
+        # Extract the colors in the correct order
+        color_sequence = [status_colors[status] for status in inventory_status_count['INVENTORY_STATUS']]
         
         fig_status = px.pie(
-            status_counts,
-            values='COUNT', 
-            names='STATUS',
+            inventory_status_count,
+            values='COUNT',
+            names='INVENTORY_STATUS',
             title='Inventory Status Distribution',
-            color='STATUS',
-            color_discrete_map=dict(zip(status_counts['STATUS'], status_counts['STATUS_COLOR']))
+            color='INVENTORY_STATUS',
+            color_discrete_map=status_colors
         )
-
-        fig_status.update_traces(
-            textposition='inside',
-            textinfo='percent'
-        )
-
+        
+        fig_status.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig_status, use_container_width=True)
+    
     with col2:
-        # Status by Category
-        status_category = inventory_analysis.groupby(['CATEGORY', 'STATUS', 'STATUS_COLOR']).size().reset_index(name='COUNT')
+        # Inventory by Category
+        inventory_by_category = inventory_analysis.groupby('CATEGORY')['INVENTORY_QTY'].agg(['sum', 'mean']).reset_index()
+        inventory_by_category.columns = ['CATEGORY', 'TOTAL_INVENTORY', 'AVG_INVENTORY']
         
-        # Create custom category order
-        status_order = ['High', 'Medium', 'Low', 'Critical Low']
+        # Get unique categories and assign Prism colors
+        categories = inventory_by_category['CATEGORY'].unique()
+        color_map = dict(zip(categories, px.colors.qualitative.Prism[:len(categories)]))
         
-        fig_status_category = px.bar(
-            status_category,
+        fig_inv_cat = px.bar(
+            inventory_by_category,
             x='CATEGORY',
-            y='COUNT', 
-            color='STATUS',
-            title='Inventory Status by Category',
-            color_discrete_map=dict(zip(status_category['STATUS'], status_category['STATUS_COLOR'])),
-            barmode='stack',
-            category_orders={'STATUS': status_order}
-        )
-
-        st.plotly_chart(fig_status_category, use_container_width=True)
-
-    # Critical Inventory Alerts
-    st.markdown("### Critical Inventory Alerts")
-    
-    # Group by product to get total quantity across all facilities
-    product_inventory = inventory_analysis.groupby(['PRODUCT_ID', 'NAME', 'CATEGORY']).agg({
-        'QUANTITY': 'sum'
-    }).reset_index()
-    
-    # Apply status to aggregated product quantities
-    product_inventory['STATUS'] = product_inventory['QUANTITY'].apply(get_inventory_status)
-    
-    # Get products with critically low inventory
-    critical_products = product_inventory[product_inventory['STATUS'] == 'Critical Low'].sort_values('QUANTITY')
-    
-    # For the detailed view, get all inventory records for these critical products
-    critical_inventory = inventory_analysis[
-        inventory_analysis['PRODUCT_ID'].isin(critical_products['PRODUCT_ID'])
-    ].sort_values(['PRODUCT_ID', 'QUANTITY'])
-
-    # Display critical inventory alerts
-    if len(critical_products) > 0:
-        st.warning(f"⚠️ {len(critical_products)} products have critically low inventory (10 or fewer units total)")
-        
-        # Show aggregated product view first
-        st.subheader("Critical Products (Aggregated)")
-        st.dataframe(
-            critical_products[['NAME', 'CATEGORY', 'QUANTITY']],
-            column_config={
-                'NAME': 'Product Name',
-                'CATEGORY': 'Category',
-                'QUANTITY': 'Total Quantity'
-            },
-            hide_index=True,
-            use_container_width=True
+            y='TOTAL_INVENTORY',
+            title='Total Inventory by Category',
+            color='CATEGORY',
+            text='TOTAL_INVENTORY',
+            color_discrete_map=color_map
         )
         
-        # Show detailed inventory by facility
-        st.subheader("Critical Inventory by Facility")
+        fig_inv_cat.update_traces(
+            texttemplate='%{text:,}',
+            textposition='outside'
+        )
+        fig_inv_cat.update_layout(
+            xaxis_title='Category',
+            yaxis_title='Total Inventory Quantity',
+            showlegend=False
+        )
+        
+        st.plotly_chart(fig_inv_cat, use_container_width=True)
+    
+    # Out of Stock and Critical Inventory Products
+    st.markdown("### Critical Inventory Products")
+    
+    critical_inventory = inventory_analysis[inventory_analysis['INVENTORY_STATUS'] == "Critical (0-5)"].sort_values('INVENTORY_QTY')
+    
+    if len(critical_inventory) > 0:
+        # Find sales velocity for critical inventory products
+        product_velocity = product_sales.groupby('PRODUCT_ID')['QUANTITY'].sum().reset_index()
+        product_velocity.columns = ['PRODUCT_ID', 'TOTAL_SOLD']
+        
+        # Merge with critical inventory
+        critical_inventory = critical_inventory.merge(product_velocity, on='PRODUCT_ID', how='left')
+        critical_inventory['TOTAL_SOLD'] = critical_inventory['TOTAL_SOLD'].fillna(0)
+        
+        # Format for display
+        critical_table = critical_inventory[['NAME', 'VARIANT_NAME', 'CATEGORY', 'BRAND', 'INVENTORY_QTY', 'TOTAL_SOLD']].copy()
+        
         st.dataframe(
-            critical_inventory[['NAME', 'CATEGORY', 'QUANTITY', 'FACILITY_NAME']],
+            critical_table,
             column_config={
                 'NAME': 'Product Name',
+                'VARIANT_NAME': 'Variant Name',
                 'CATEGORY': 'Category',
-                'QUANTITY': 'Quantity',
-                'FACILITY_NAME': 'Facility'
+                'BRAND': 'Brand',
+                'INVENTORY_QTY': 'Current Stock',
+                'TOTAL_SOLD': 'Total Units Sold'
             },
             hide_index=True,
             use_container_width=True
         )
     else:
-        st.success("✅ No products have critically low inventory")
-
-    # Inventory Distribution Analysis
-    st.markdown("### Inventory Distribution")
-
-    # Create box plot of quantity distribution by category
-    fig_distribution = px.box(
-        inventory_analysis,
-        x='CATEGORY',
-        y='QUANTITY',
-        title='Inventory Quantity Distribution by Category',
-        color='CATEGORY',
-        color_discrete_sequence=BASE_PALETTE
-    )
-
-    fig_distribution.update_layout(
-        showlegend=False,
-        xaxis_title='Category',
-        yaxis_title='Quantity'
-    )
-
-    st.plotly_chart(fig_distribution, use_container_width=True)
-
+        st.info("No products with critical inventory levels found.")
+    
 # Campaign Analysis tab
 with tabs[6]:
-    # Check if this tab is active
-    if st.session_state.active_tab != 6:
-        st.session_state.active_tab = 6
-        
-    st.markdown("## Campaign Analysis")
-
-    # Get filtered data
-    campaign = data['campaign']
-    order_fact = data['order_fact']
-    order_campaign_attribution = data['order_campaign_attribution']
-
     # Merge campaign data with attribution and order data
     campaign_performance = (order_campaign_attribution.merge(
         campaign[['CAMPAIGN_ID', 'CAMPAIGN_NAME', 'CAMPAIGN_TYPE', 'OBJECTIVE', 'BUDGET', 'TARGET_SEGMENT', 'START_DATE', 'END_DATE']], 
@@ -1606,13 +1455,15 @@ with tabs[6]:
         order_fact[['ORDER_ID', 'TOTAL_AMOUNT']], 
         on='ORDER_ID'
     ))
-    
     # Calculate attributed revenue
     campaign_performance['ATTRIBUTED_REVENUE'] = campaign_performance['TOTAL_AMOUNT'] * campaign_performance['CONTRIBUTION_PERCENT']
 
     # Calculate key metrics
     total_campaigns = len(campaign)
     active_campaigns = len(campaign[campaign['END_DATE'] >= pd.Timestamp.now()])
+    
+    # Convert budget from currency string to numeric
+    campaign['BUDGET'] = campaign['BUDGET'].str.replace('$', '').str.replace(',', '').astype(float)
     total_budget = campaign['BUDGET'].sum()
     avg_campaign_budget = total_budget / total_campaigns if total_campaigns > 0 else 0
 
@@ -1621,8 +1472,7 @@ with tabs[6]:
     with col1:
         st.markdown(create_metric_container(
             "Total Campaigns",
-            f"{total_campaigns:,}",
-            PRIMARY_COLOR
+            f"{total_campaigns:,}"
         ), unsafe_allow_html=True)
     with col2:
         st.markdown(create_metric_container(
@@ -1639,12 +1489,12 @@ with tabs[6]:
     with col4:
         st.markdown(create_metric_container(
             "Avg Campaign Budget",
-            f"${avg_campaign_budget:,.2f}",
-            PRIMARY_COLOR
+            f"${avg_campaign_budget:,.2f}"
         ), unsafe_allow_html=True)
 
     # Campaign Type Analysis
-    st.markdown("### Campaign Performance by Type")
+    ""
+    st.markdown("#### Campaign Performance by Type")
     
     # Calculate performance metrics by campaign type
     type_performance = campaign.groupby('CAMPAIGN_TYPE').agg({
@@ -1659,7 +1509,7 @@ with tabs[6]:
         # Create a color map to ensure consistent colors across both charts
         campaign_types = type_performance['CAMPAIGN_TYPE'].unique()
         # Use a different color palette from plotly express
-        custom_colors = px.colors.qualitative.Dark2[:len(campaign_types)]
+        custom_colors = px.colors.qualitative.Prism[:len(campaign_types)]
         color_map = dict(zip(campaign_types, custom_colors))
 
         # Budget by Campaign Type
@@ -1712,7 +1562,7 @@ with tabs[6]:
     with col1:
         # Create a color map to ensure consistent colors across both charts
         objectives = objective_counts['OBJECTIVE'].unique()
-        custom_colors = px.colors.qualitative.Dark2[:len(objectives)]
+        custom_colors = px.colors.qualitative.Prism[:len(objectives)]
         color_map = dict(zip(objectives, custom_colors))
 
         # Number of Campaigns by Objective
@@ -1766,7 +1616,7 @@ with tabs[6]:
     with col1:
         # Create a color map to ensure consistent colors across both charts
         segments = segment_analysis['TARGET_SEGMENT'].unique()
-        custom_colors = px.colors.qualitative.Dark2[:len(segments)]
+        custom_colors = px.colors.qualitative.Prism[:len(segments)]
         color_map = dict(zip(segments, custom_colors))
 
         # Campaigns by Target Segment
