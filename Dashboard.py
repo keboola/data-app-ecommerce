@@ -538,7 +538,8 @@ with tabs[1]:
             start_date = period[('ORDER_DATE', 'first')]
             # Add one day to the end date to make the rectangle cover the full day
             end_date = period[('ORDER_DATE', 'last')] + pd.Timedelta(days=1)
-            color = 'rgba(0, 255, 0, 0.1)' if period['ACHIEVEMENT_STATUS'] else 'rgba(255, 0, 0, 0.1)'
+            # Fix: Access the boolean value directly
+            color = 'rgba(0, 255, 0, 0.1)' if period['ACHIEVEMENT_STATUS'] == True else 'rgba(255, 0, 0, 0.1)'
             
             sales_plan_fig.add_vrect(
                 x0=start_date,
