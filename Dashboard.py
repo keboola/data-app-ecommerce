@@ -459,7 +459,8 @@ with tabs[1]:
     st.plotly_chart(fig3b, use_container_width=True)
     
     # Create sales dashboard
-    metrics = st.container()
+    # Add KPI metrics for sales performance
+
     # Calculate daily actual sales (using efficient groupby)
     daily_actual_sales = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).agg({
         'TOTAL_AMOUNT': 'sum'
@@ -488,6 +489,33 @@ with tabs[1]:
 
     # Calculate achievement rate
     daily_sales['ACHIEVEMENT_RATE'] = (daily_sales['TOTAL_AMOUNT'] / daily_sales['PLANNED_AMOUNT'] * 100).fillna(0)
+
+    col1, col2, col3 = st.columns(3)
+
+    total_actual = daily_sales['TOTAL_AMOUNT'].sum()
+    total_planned = daily_sales['PLANNED_AMOUNT'].sum()
+    overall_achievement = (total_actual / total_planned * 100) if total_planned > 0 else 0
+
+    with col1:
+        st.markdown(create_metric_container(
+            "Total Actual Sales",
+            f"${total_actual:,.2f}"
+        ), unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(create_metric_container(
+            "Total Planned Sales",
+            f"${total_planned:,.2f}",
+            SECONDARY_COLOR
+        ), unsafe_allow_html=True)
+
+    with col3:
+        achievement_color = SUCCESS_COLOR if overall_achievement >= 100 else WARNING_COLOR if overall_achievement >= 80 else DANGER_COLOR
+        st.markdown(create_metric_container(
+            "Overall Achievement Rate",
+            f"{overall_achievement:.1f}%",
+            achievement_color
+        ), unsafe_allow_html=True)
 
     # Create sales vs plan visualization
     sales_plan_fig = go.Figure()
@@ -554,35 +582,6 @@ with tabs[1]:
 
     # Display the updated sales vs plan chart
     st.plotly_chart(sales_plan_fig, use_container_width=True)
-
-    # Add KPI metrics for sales performance
-    col1, col2, col3 = metrics.columns(3)
-
-    total_actual = daily_sales['TOTAL_AMOUNT'].sum()
-    total_planned = daily_sales['PLANNED_AMOUNT'].sum()
-    overall_achievement = (total_actual / total_planned * 100) if total_planned > 0 else 0
-
-    with col1:
-        st.markdown(create_metric_container(
-            "Total Actual Sales",
-            f"${total_actual:,.2f}"
-        ), unsafe_allow_html=True)
-
-    with col2:
-        st.markdown(create_metric_container(
-            "Total Planned Sales",
-            f"${total_planned:,.2f}",
-            SECONDARY_COLOR
-        ), unsafe_allow_html=True)
-
-    with col3:
-        achievement_color = SUCCESS_COLOR if overall_achievement >= 100 else WARNING_COLOR if overall_achievement >= 80 else DANGER_COLOR
-        st.markdown(create_metric_container(
-            "Overall Achievement Rate",
-            f"{overall_achievement:.1f}%",
-            achievement_color
-        ), unsafe_allow_html=True)
-
 # Product Analysis tab
 with tabs[2]:
     # Merge relevant tables efficiently for product analysis
