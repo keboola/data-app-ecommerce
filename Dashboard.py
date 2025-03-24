@@ -305,26 +305,56 @@ with tabs[1]:
         st.markdown(create_metric_container("Avg Order Value", f"${avg_order_value:,.2f}"), unsafe_allow_html=True)
     
     # Create time series with daily orders
-    daily_orders = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).size().reset_index(name='NEW_ORDERS')
+    daily_orders = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).agg({
+        'ORDER_ID': 'count',
+        'TOTAL_AMOUNT': 'sum'
+    }).reset_index()
+    daily_orders.rename(columns={'ORDER_ID': 'NEW_ORDERS'}, inplace=True)
 
-    # Plot daily orders
-    fig1 = px.scatter(
-        daily_orders,
-        x='ORDER_DATE',
-        y='NEW_ORDERS',
-        title='Daily Order Count',
-        labels={
-            'ORDER_DATE': 'Date',
-            'NEW_ORDERS': 'Number of Orders'
-        }
-    )
-
-    fig1.update_traces(
-        mode='lines+markers',
-        marker=dict(color='#1e6996', size=8),
-        line=dict(color='#1e6996', width=2),
-        showlegend=False,
+    # Plot daily orders and revenue
+    fig1 = go.Figure()
+    # Add bar chart for order count
+    fig1.add_trace(go.Bar(
+        x=daily_orders['ORDER_DATE'],
+        y=daily_orders['NEW_ORDERS'],
+        name='Number of Orders',
+        marker_color='rgba(128, 128, 128, 0.3)',  # Grey with 70% transparency
         hovertemplate='Date: %{x|%Y-%m-%d}<br>Number of Orders: %{y}<extra></extra>'
+    ))
+    
+    # Add line chart for revenue on secondary y-axis
+    fig1.add_trace(go.Scatter(
+        x=daily_orders['ORDER_DATE'],
+        y=daily_orders['TOTAL_AMOUNT'],
+        name='Revenue',
+        mode='lines',
+        line=dict(color='#1E88E5', width=2),
+        yaxis='y2',
+        hovertemplate='Date: %{x|%Y-%m-%d}<br>Revenue: $%{y:,.2f}<extra></extra>'
+    ))
+    
+    # Update layout for dual y-axis
+    fig1.update_layout(
+        title='Daily Order Count and Revenue',
+        xaxis=dict(title='Date'),
+        yaxis=dict(
+            title='Number of Orders',
+            side='left'
+        ),
+        yaxis2=dict(
+            title='Revenue ($)',
+            side='right',
+            overlaying='y',
+            showgrid=False
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        hovermode='x unified'
     )
 
     st.plotly_chart(fig1, use_container_width=True)
@@ -430,35 +460,26 @@ with tabs[1]:
     
     # Create sales dashboard
     metrics = st.container()
-
     # Calculate daily actual sales (using efficient groupby)
     daily_actual_sales = order_fact.groupby(pd.Grouper(key='ORDER_DATE', freq='D')).agg({
         'TOTAL_AMOUNT': 'sum'
     }).reset_index()
 
-    # Calculate daily planned sales more efficiently
-    # Create a date range for the filtered period
-    date_range_days = pd.date_range(start=start_date, end=end_date, freq='D')
-    daily_plan = pd.DataFrame({'ORDER_DATE': date_range_days, 'PLANNED_AMOUNT': 0.0})
-    
-    # For each plan, distribute the target revenue across its days
-    for _, row in sales_plan.iterrows():
-        plan_start = max(row['PLAN_START_DATE'], start_date)
-        plan_end = min(row['PLAN_END_DATE'], end_date)
-        plan_days = (plan_end - plan_start).days + 1
-        
-        if plan_days > 0:
-            daily_amount = row['TARGET_REVENUE'] / plan_days
-            
-            # Update the daily plan for days in this plan's range
-            mask = (daily_plan['ORDER_DATE'] >= plan_start) & (daily_plan['ORDER_DATE'] <= plan_end)
-            daily_plan.loc[mask, 'PLANNED_AMOUNT'] += daily_amount
+    # Filter sales plan to relevant date range
+    sales_plan = sales_plan[
+        (sales_plan['PLAN_START_DATE'] >= start_date) & 
+        (sales_plan['PLAN_START_DATE'] <= end_date)
+    ]
+
+    # Create daily plan dataframe from sales_plan data
+    daily_plan = sales_plan[['PLAN_START_DATE', 'TARGET_REVENUE']].copy()
+    daily_plan.columns = ['ORDER_DATE', 'PLANNED_AMOUNT']
 
     # Merge actual and planned sales
     daily_sales = pd.merge(
         daily_actual_sales,
         daily_plan,
-        on='ORDER_DATE',
+        on='ORDER_DATE', 
         how='outer'
     ).fillna(0)
 
@@ -471,7 +492,7 @@ with tabs[1]:
     # Create sales vs plan visualization
     sales_plan_fig = go.Figure()
 
-    # Add colored background for each day (more efficiently)
+    # Add colored background for each day
     achievement_colors = np.where(
         daily_sales['TOTAL_AMOUNT'] >= daily_sales['PLANNED_AMOUNT'],
         'rgba(0, 255, 0, 0.1)',  # Green for achievement >= 100%
@@ -1517,7 +1538,7 @@ with tabs[6]:
             type_performance,
             values='BUDGET', 
             names='CAMPAIGN_TYPE',
-            title='Budget Distribution by Campaign Type',
+            title='Budget Allocation by Campaign Type',
             color='CAMPAIGN_TYPE',
             color_discrete_map=color_map
         )
