@@ -517,34 +517,36 @@ with tabs[1]:
             achievement_color
         ), unsafe_allow_html=True)
 
-    # Create sales vs plan visualization
+    # Create sales vs plan visualization - OPTIMIZED VERSION
     sales_plan_fig = go.Figure()
 
-    # Add colored background for each day
-    achievement_colors = np.where(
-        daily_sales['TOTAL_AMOUNT'] >= daily_sales['PLANNED_AMOUNT'],
-        'rgba(0, 255, 0, 0.1)',  # Green for achievement >= 100%
-        'rgba(255, 0, 0, 0.1)'   # Red for achievement < 100%
-    )
-    
-    for i in range(len(daily_sales)-1):
-        sales_plan_fig.add_vrect(
-            x0=daily_sales['ORDER_DATE'].iloc[i],
-            x1=daily_sales['ORDER_DATE'].iloc[i+1],
-            fillcolor=achievement_colors[i],
-            layer='below',
-            line_width=0,
-        )
-    
-    # Add last day rectangle if there's data
+    # Instead of individual rectangles for each day, create consolidated rectangles
+    # by grouping consecutive days with the same achievement status
     if len(daily_sales) > 0:
-        sales_plan_fig.add_vrect(
-            x0=daily_sales['ORDER_DATE'].iloc[-1],
-            x1=daily_sales['ORDER_DATE'].iloc[-1] + pd.Timedelta(days=1),
-            fillcolor=achievement_colors[-1],
-            layer='below',
-            line_width=0,
-        )
+        # Create a column to identify consecutive periods with same achievement status
+        daily_sales['ACHIEVEMENT_STATUS'] = daily_sales['TOTAL_AMOUNT'] >= daily_sales['PLANNED_AMOUNT']
+        daily_sales['STATUS_CHANGE'] = daily_sales['ACHIEVEMENT_STATUS'] != daily_sales['ACHIEVEMENT_STATUS'].shift(1)
+        daily_sales['GROUP_ID'] = daily_sales['STATUS_CHANGE'].cumsum()
+        
+        # Group by consecutive periods with same status
+        grouped_periods = daily_sales.groupby(['GROUP_ID', 'ACHIEVEMENT_STATUS']).agg({
+            'ORDER_DATE': ['first', 'last']
+        }).reset_index()
+        
+        # Add rectangles for each period (much fewer than individual days)
+        for _, period in grouped_periods.iterrows():
+            start_date = period[('ORDER_DATE', 'first')]
+            # Add one day to the end date to make the rectangle cover the full day
+            end_date = period[('ORDER_DATE', 'last')] + pd.Timedelta(days=1)
+            color = 'rgba(0, 255, 0, 0.1)' if period['ACHIEVEMENT_STATUS'] else 'rgba(255, 0, 0, 0.1)'
+            
+            sales_plan_fig.add_vrect(
+                x0=start_date,
+                x1=end_date,
+                fillcolor=color,
+                layer='below',
+                line_width=0,
+            )
 
     # Add actual sales line
     sales_plan_fig.add_trace(go.Scatter(
@@ -582,6 +584,7 @@ with tabs[1]:
 
     # Display the updated sales vs plan chart
     st.plotly_chart(sales_plan_fig, use_container_width=True)
+
 # Product Analysis tab
 with tabs[2]:
     # Merge relevant tables efficiently for product analysis
