@@ -520,35 +520,6 @@ with tabs[1]:
     # Create sales vs plan visualization - OPTIMIZED VERSION
     sales_plan_fig = go.Figure()
 
-    # Instead of individual rectangles for each day, create consolidated rectangles
-    # by grouping consecutive days with the same achievement status
-    if len(daily_sales) > 0:
-        # Create a column to identify consecutive periods with same achievement status
-        daily_sales['ACHIEVEMENT_STATUS'] = daily_sales['TOTAL_AMOUNT'] >= daily_sales['PLANNED_AMOUNT']
-        daily_sales['STATUS_CHANGE'] = daily_sales['ACHIEVEMENT_STATUS'] != daily_sales['ACHIEVEMENT_STATUS'].shift(1)
-        daily_sales['GROUP_ID'] = daily_sales['STATUS_CHANGE'].cumsum()
-        
-        # Group by consecutive periods with same status
-        grouped_periods = daily_sales.groupby(['GROUP_ID', 'ACHIEVEMENT_STATUS']).agg({
-            'ORDER_DATE': ['first', 'last']
-        }).reset_index()
-        
-        # Add rectangles for each period (much fewer than individual days)
-        for _, period in grouped_periods.iterrows():
-            start_date = period[('ORDER_DATE', 'first')]
-            # Add one day to the end date to make the rectangle cover the full day
-            end_date = period[('ORDER_DATE', 'last')] + pd.Timedelta(days=1)
-            # Fix: Access the boolean value directly
-            color = 'rgba(0, 255, 0, 0.1)' if period['ACHIEVEMENT_STATUS'] == True else 'rgba(255, 0, 0, 0.1)'
-            
-            sales_plan_fig.add_vrect(
-                x0=start_date,
-                x1=end_date,
-                fillcolor=color,
-                layer='below',
-                line_width=0,
-            )
-
     # Add actual sales line
     sales_plan_fig.add_trace(go.Scatter(
         x=daily_sales['ORDER_DATE'],
