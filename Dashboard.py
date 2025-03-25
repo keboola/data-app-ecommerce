@@ -715,30 +715,30 @@ with tabs[2]:
     st.plotly_chart(fig_brand, use_container_width=True)
 
     # Product Sales Hierarchy (Sunburst)
-    st.markdown("### Product Sales Hierarchy")
+    #st.markdown("### Product Sales Hierarchy")
     
     # Prepare data for sunburst chart
-    product_sales_hierarchy = product_sales.groupby(['CATEGORY', 'BRAND', 'NAME'])['REVENUE'].sum().reset_index()
+   #product_sales_hierarchy = product_sales.groupby(['CATEGORY', 'BRAND', 'NAME'])['REVENUE'].sum().reset_index()
     
     # Create sunburst chart
-    fig_sunburst = px.sunburst(
-        product_sales_hierarchy,
-        path=['CATEGORY', 'BRAND', 'NAME'], 
-        values='REVENUE',
-        title='Product Revenue Distribution',
-        color_discrete_sequence=px.colors.qualitative.Prism
-    )
+   # fig_sunburst = px.sunburst(
+   #     product_sales_hierarchy,
+   #     path=['CATEGORY', 'BRAND', 'NAME'], 
+   #     values='REVENUE',
+   #     title='Product Revenue Distribution',
+   #     color_discrete_sequence=px.colors.qualitative.Prism
+    #)
     
-    fig_sunburst.update_layout(
-        height=600
-    )
+   # fig_sunburst.update_layout(
+   #     height=600
+   # )
     
-    fig_sunburst.update_traces(
-        textinfo='label+value+percent parent',
-        texttemplate='%{label}<br>$%{value:,.2f}<br>%{percentParent:.1%}'
-    )
+   # fig_sunburst.update_traces(
+   #     textinfo='label+value+percent parent',
+   #     texttemplate='%{label}<br>$%{value:,.2f}<br>%{percentParent:.1%}'
+   # )
     
-    st.plotly_chart(fig_sunburst, use_container_width=True)
+   # st.plotly_chart(fig_sunburst, use_container_width=True)
     
     # Product Performance Table
     st.markdown("### Detailed Product Performance")
